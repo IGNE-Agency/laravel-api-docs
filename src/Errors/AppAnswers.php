@@ -24,8 +24,8 @@ use Throwable;
 final class AppAnswers
 {
     /**
-     * What the global middleware of the application add to the log context of a request (a trace
-     * id, for example), learnt once by sending one request through them.
+     * What the global middleware add to the log context of a request (a trace id), learnt once by
+     * sending one request through them.
      *
      * @var array{data: array<string, mixed>, hidden: array<string, mixed>}|null
      */
@@ -79,7 +79,7 @@ final class AppAnswers
     }
 
     /**
-     * The answers to several exceptions, without those that are no JSON object.
+     * Without the answers that are no JSON object.
      *
      * @param  list<Throwable>  $exceptions
      * @return list<Answer>

@@ -7,13 +7,12 @@ namespace Igne\ApiDocs\Packages;
 use ReflectionClass;
 
 /**
- * Where a class comes from: the application or a package under `vendor/`. A package is told by the
- * first two parts of a class name (`Igne\Auth`).
+ * Where a class comes from. A package is told by the first two parts of a class name (`Igne\Auth`).
  */
 final class Package
 {
     /**
-     * The vendor and package part of a class name (`Igne\Auth`), null for a class without one.
+     * Null for a class without a vendor and a package part.
      */
     public static function of(string $class): ?string
     {
@@ -23,8 +22,7 @@ final class Package
     }
 
     /**
-     * Whether a class is loaded from a file under `vendor/`: null for a class that does not exist or
-     * has no file (one of PHP itself).
+     * Null for a class that does not exist or has no file.
      */
     public static function isInVendor(string $class): ?bool
     {

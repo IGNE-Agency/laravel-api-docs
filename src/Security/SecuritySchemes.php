@@ -19,16 +19,9 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Str;
 
 /**
- * Documents how a client authenticates on a route behind the `auth` middleware, from the guards of
- * that middleware:
- *
- * - a guard of Sanctum takes a bearer token, and also the session cookie when the route runs
- *   Sanctum's stateful stack (`statefulApi()`): the two ways an SPA and any other client log in;
- * - a session guard takes the session cookie;
- * - any other guard takes a bearer token.
- *
- * A route without `auth` is public. The XSRF header a session client sends is no way to
- * authenticate, so it is no part of this: {@see CsrfHeader} documents it.
+ * Documents how a client authenticates on a route behind `auth`, from its guards: a Sanctum guard
+ * takes a bearer token, and the session cookie too on a stateful route; a session guard takes the
+ * cookie; any other guard a bearer token. A route without `auth` is public.
  */
 final class SecuritySchemes implements DocumentTransformer, OperationTransformer
 {
@@ -131,8 +124,7 @@ final class SecuritySchemes implements DocumentTransformer, OperationTransformer
     }
 
     /**
-     * The guards the `auth` middleware of a route names: an empty list for `auth` without guards,
-     * null for a route without `auth`.
+     * An empty list for `auth` without guards, null for a route without `auth`.
      *
      * @return list<string>|null
      */

@@ -15,18 +15,18 @@ use Illuminate\Support\Str;
 final readonly class RouteMiddleware
 {
     /**
-     * Sanctum's stateful stack (`statefulApi()`), which starts the session and checks the CSRF token.
+     * Sanctum's `statefulApi()` stack, which starts the session and checks the CSRF token.
      */
     public const string SANCTUM_STATEFUL = 'Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful';
 
     /**
-     * The kernel is only asked for so it is built: it is what tells the router the middleware groups
-     * and aliases, and a console command (`scramble:export`) has not built it.
+     * The kernel is only asked for so it is built: it tells the router the middleware groups and
+     * aliases, and a console command (`scramble:export`) has not built it.
      */
     public function __construct(private Router $router, Kernel $kernel) {}
 
     /**
-     * The class of each middleware of the route, in the order a request meets them, without parameters.
+     * In the order a request meets them, without parameters.
      *
      * @return list<string>
      */

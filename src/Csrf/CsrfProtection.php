@@ -67,8 +67,6 @@ final readonly class CsrfProtection
     }
 
     /**
-     * Whether the application excepts the path of the route from the check, as Laravel matches it.
-     *
      * @param  class-string  $csrfMiddleware
      */
     private function isExcepted(Route $route, string $csrfMiddleware): bool

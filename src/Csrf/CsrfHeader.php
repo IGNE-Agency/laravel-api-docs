@@ -13,10 +13,8 @@ use Dedoc\Scramble\Support\RouteInfo;
 use Igne\ApiDocs\Middleware\ExceptionsOfMiddleware;
 
 /**
- * Documents the `X-XSRF-TOKEN` header on every operation whose CSRF token Laravel checks
- * ({@see CsrfProtection}). Whether the user is logged in does not matter: a guest operation that changes
- * state is protected as well. The 419 such an operation answers without a valid token is an error
- * of its middleware, which {@see ExceptionsOfMiddleware} adds.
+ * Documents the `X-XSRF-TOKEN` header on every operation whose CSRF token Laravel checks, a guest
+ * operation included. The 419 itself is added by {@see ExceptionsOfMiddleware}.
  */
 final readonly class CsrfHeader implements OperationTransformer
 {

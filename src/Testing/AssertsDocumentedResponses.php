@@ -9,9 +9,8 @@ use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Assert;
 
 /**
- * For the tests of an application or a package: asserts that a real response is what the generated
- * document says the operation answers. The status and the content type must be documented, and a
- * JSON body must fit the documented schema.
+ * Asserts in a test that a real response is what the generated document says: its status, its
+ * content type and a JSON body that fits the schema. The document is generated once per test class.
  *
  * A failure means the code and the document disagree: fix the code, never the assertion.
  */
@@ -56,8 +55,7 @@ trait AssertsDocumentedResponses
     }
 
     /**
-     * Where a value does not fit a schema, or null when it does. Reads what the document of this
-     * package is written in: types, fixed values, required members, lists, alternatives and references.
+     * Where a value does not fit a schema, or null when it does.
      *
      * @param  array<string, mixed>  $schema
      */
@@ -121,7 +119,7 @@ trait AssertsDocumentedResponses
     }
 
     /**
-     * The JSON type of a decoded value. An empty PHP array is the object or the list the schema asks for.
+     * An empty PHP array is the object or the list the schema asks for.
      *
      * @param  list<string>  $expected
      */

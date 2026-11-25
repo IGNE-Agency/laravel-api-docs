@@ -22,16 +22,10 @@ use ReflectionClass;
 use ReflectionFunction;
 
 /**
- * Documents an action that answers through a response contract: `return app(LoginResponse::class)`.
- *
- * A package such as Laravel Fortify lets an application replace each of its answers: its
- * controllers return an interface, and the container decides which class answers. Scramble reads
- * the interface, which says nothing. This follows the contract to the class that is bound to it,
- * Fortify's own or the one an application or a package put in its place, and documents what that
- * class answers a JSON client: the part of its `toResponse()` that is no redirect and no view.
- *
- * Nothing here is about one package: any controller that answers through a bound contract is read
- * this way.
+ * Documents an action that answers through a response contract of the container, as Laravel
+ * Fortify does: `return app(LoginResponse::class)`. Scramble reads the interface, which says
+ * nothing; this follows it to the class bound to it and documents what that class answers a JSON
+ * client.
  */
 final class BoundResponses extends TypeToSchemaExtension
 {
@@ -52,8 +46,8 @@ final class BoundResponses extends TypeToSchemaExtension
     }
 
     /**
-     * What a class answers a JSON client: the part of its `toResponse()` that is no redirect and no
-     * view. Null when it has no such answer (it throws for a JSON client), or more than one.
+     * The part of `toResponse()` that is no redirect and no view. Null when there is none (the class
+     * throws for a JSON client) or more than one.
      *
      * @param  class-string  $responsable
      */
@@ -75,8 +69,7 @@ final class BoundResponses extends TypeToSchemaExtension
     }
 
     /**
-     * The class the container answers a response contract with: null when the type is no contract
-     * (a class that answers itself), when nothing is bound to it, or when a closure builds the answer.
+     * Null when the type is no contract, nothing is bound to it, or a closure builds the answer.
      *
      * @return class-string|null
      */

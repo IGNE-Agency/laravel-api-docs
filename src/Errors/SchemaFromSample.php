@@ -5,14 +5,10 @@ declare(strict_types=1);
 namespace Igne\ApiDocs\Errors;
 
 /**
- * Writes the schema of a real JSON answer. Nothing is known about the shape beforehand, so the
- * values themselves tell it:
- *
- * - a string that looks like an identifier (`two_factor_required`, `required`) is a fixed value,
- *   unless it is the value of a member with a free-text name (`message`, `detail`);
- * - a UUID or a URI gets its format, any other string is a string;
- * - no value is copied into the schema except a fixed one, so the document does not change with
- *   the machine, the moment or the language it is generated in.
+ * Infers a schema from a real JSON answer. A string that looks like an identifier
+ * (`two_factor_required`) is a fixed value, unless its member has a free-text name (`message`). No
+ * other value is copied, so the document does not change with the machine, the moment or the
+ * language it is generated in.
  */
 final readonly class SchemaFromSample
 {
@@ -42,8 +38,8 @@ final readonly class SchemaFromSample
     }
 
     /**
-     * One schema that holds for every one of the given: the same member in several becomes the
-     * merge of them, fixed values become an enum, a member some lack is no longer required.
+     * One schema that holds for all of them: fixed values become an enum, a member some lack is no
+     * longer required.
      *
      * @param  list<array<string, mixed>>  $schemas
      * @return array<string, mixed>
@@ -96,8 +92,7 @@ final readonly class SchemaFromSample
     }
 
     /**
-     * Fixed values become one enum; when any of the strings is free, the result is a free string, with
-     * the format they all share.
+     * An enum of the fixed values, or a plain string as soon as one of them is free text.
      *
      * @param  list<array<string, mixed>>  $schemas
      * @return array<string, mixed>

@@ -9,12 +9,11 @@ use ReflectionClass;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The named schemas of the errors of one document, so a client generates a type for each.
+ * The named schemas of the errors of one document.
  *
- * An answer that carries one fixed value of its own (a `code`) is named after that value
- * (`two_factor_required` is `TwoFactorRequiredError`), so every exception the application answers
- * the same way is the same schema. An answer without one (Laravel's `{ message }`) is named after
- * its status: nothing in it tells two errors of that status apart.
+ * An answer with one fixed value of its own (a `code`) is named after it (`two_factor_required` is
+ * `TwoFactorRequiredError`). An answer without one (Laravel's `{ message }`) is named after its
+ * status.
  */
 final class ErrorSchemas
 {
@@ -48,14 +47,14 @@ final class ErrorSchemas
     private array $descriptions = [];
 
     /**
-     * The schemas of one request each (its validation error), which are no error of their own.
+     * The validation errors of single requests, which are no part of the closed set.
      *
      * @var array<string, true>
      */
     private array $ofOneRequest = [];
 
     /**
-     * The path of an operation of the document, to ask the application about the errors any request can get.
+     * A path of the document, to ask the application about the errors any request can get.
      */
     public ?string $anyPath = null;
 
@@ -76,8 +75,7 @@ final class ErrorSchemas
         $name = str_ends_with($name, $this->suffix) ? $name : $name.$this->suffix;
         $this->put($name, $schema);
 
-        // Only an answer with a code of its own is the error of one class; one named after its status stands
-        // for every exception of that status.
+        // Only an answer with a code of its own is the error of one class, and takes its description.
         $summary = $code === null ? null : self::summaryOf($exceptionClass);
 
         if ($summary !== null) {
@@ -90,8 +88,6 @@ final class ErrorSchemas
     }
 
     /**
-     * The validation error of one request, named after the request.
-     *
      * @param  array<string, mixed>  $schema
      */
     public function addValidationOf(string $requestName, array $schema): string
@@ -106,8 +102,7 @@ final class ErrorSchemas
     }
 
     /**
-     * The body of an error response: the error itself, or one of several told apart by the member
-     * that is fixed and different in each.
+     * The error itself, or a `oneOf` told apart by the member that is fixed and different in each.
      *
      * @param  list<string>  $names
      * @return array<string, mixed>
@@ -125,8 +120,6 @@ final class ErrorSchemas
     }
 
     /**
-     * Every schema, with its description, to write into the document.
-     *
      * @return array<string, array<string, mixed>>
      */
     public function all(): array
@@ -142,7 +135,7 @@ final class ErrorSchemas
     }
 
     /**
-     * The closed set: every error the API can answer, and the values of the member that tells them apart.
+     * Every error the API can answer, and the values that tell them apart.
      *
      * @return array{errors: array<string, mixed>, codes: array<string, mixed>|null}|null
      */
@@ -173,9 +166,6 @@ final class ErrorSchemas
         $this->anyPath = null;
     }
 
-    /**
-     * The reason phrase of a status, null for a status without one.
-     */
     public static function reasonPhrase(int $status): ?string
     {
         return $status === 419 ? 'Page Expired' : (Response::$statusTexts[$status] ?? null);
@@ -190,7 +180,7 @@ final class ErrorSchemas
     }
 
     /**
-     * The member that is a fixed value in each of the schemas and a different one in each.
+     * The member that is a fixed value in every schema and a different one in each.
      *
      * @param  list<string>  $names
      * @return array{propertyName: string, mapping: array<string, string>}|null
@@ -219,7 +209,7 @@ final class ErrorSchemas
     }
 
     /**
-     * The top-level members of a schema that are one fixed string.
+     * The top-level members that are one fixed string.
      *
      * @param  array<string, mixed>  $schema
      * @return array<string, string>
@@ -245,8 +235,7 @@ final class ErrorSchemas
     }
 
     /**
-     * The first paragraph of the docblock of an exception class that is not the framework's own:
-     * such a class is written for one error, and says when it happens.
+     * The first paragraph of the docblock of an exception class, unless the class is the framework's.
      *
      * @param  class-string|null  $class
      */

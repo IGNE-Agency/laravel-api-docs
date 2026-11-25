@@ -23,18 +23,12 @@ use Igne\ApiDocs\Validation\RequestRules;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Registers the rules the configuration turns on. Each one tells Scramble something about a Laravel
- * application it cannot read by itself, and applies to every route of the document, whoever
- * registered it: the application or a package.
+ * Registers the rules the config turns on. Each applies to every route of the document, whoever
+ * registered it.
  *
- * The rules run in two phases, so the result does not depend on the order the packages of an
- * application boot in:
- *
- * - a rule that adds knowledge (what an operation can throw) runs in front of Scramble's own
- *   transformers;
- * - a rule that writes a part of the document (the errors, the security, a header) runs once every
- *   provider has booted, after the transformers of the application and of every other package, and
- *   each writes a part of its own.
+ * A rule that adds knowledge (what an operation can throw) runs before Scramble's own transformers.
+ * A rule that writes the document runs once every provider has booted, after everyone else's. So
+ * the result does not depend on the order packages boot in.
  */
 final class ApiDocsServiceProvider extends ServiceProvider
 {
@@ -98,8 +92,8 @@ final class ApiDocsServiceProvider extends ServiceProvider
                 ])));
         });
 
-        // The code does not change between two deploys, so outside the local environment the document is
-        // generated once, by `php artisan optimize` in the deploy, and served from Scramble's cache.
+        // Outside local the document is generated once per deploy (`php artisan optimize`) and served from
+        // Scramble's cache.
         if (! $this->app->isLocal()) {
             $this->optimizes('scramble:cache', 'scramble:clear');
         }

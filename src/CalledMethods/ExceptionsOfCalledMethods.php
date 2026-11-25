@@ -17,14 +17,12 @@ use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 
 /**
- * Lets an exception be thrown anywhere: Scramble only sees what a method throws itself, so for
- * every call a method makes to the application's own code this adds what the called method
- * throws. Scramble asks again while it analyses that method, so the calls are followed all the
- * way down: controller, service, repository.
+ * Adds what the methods an action calls can throw, all the way down (controller, service,
+ * repository): Scramble only sees what a method throws itself.
  *
- * Only a call whose target is known from the code is followed: a typed property or argument, a
- * static call, `new`, `$this`, and an object that is called itself (an action class). The application's code is followed, and so is a package inside itself. What runs behind an interface, the container (`app(Service::class)`),
- * an event or a job is not; such a method declares its exceptions with `@throws`.
+ * A call is followed when the code tells its target (a typed property or argument, a static call,
+ * `new`, `$this`, an invoked action class) and that target is application code, or code of the
+ * same package as the caller. Anything else declares its exceptions with `@throws`.
  */
 final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
 {
@@ -60,8 +58,7 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
     }
 
     /**
-     * The method a call runs: the one it names, or `__invoke` when an object itself is called
-     * (`$action($user)`), as an action class is.
+     * `__invoke` when an object itself is called: `$action($user)`.
      */
     private function calledMethod(Expr $node): ?string
     {
@@ -77,8 +74,7 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
     }
 
     /**
-     * The class a call is made on, when the code tells: the declared type of the object of a
-     * method call, or the class named in a static call.
+     * Null when the code does not tell which class is called.
      */
     private function calledClass(Expr $node, Scope $scope): ?string
     {
@@ -105,10 +101,7 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
     }
 
     /**
-     * The application's own code, and a call a package makes inside itself: a controller of a
-     * package that calls a service of the same package is followed like the application's. The
-     * framework and any other package document their exceptions with `@throws`; their code is not
-     * read.
+     * Application code, or a package calling inside itself.
      */
     private function isReadable(string $class, ?string $caller): bool
     {

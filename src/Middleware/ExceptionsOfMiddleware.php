@@ -18,28 +18,21 @@ use Illuminate\Session\TokenMismatchException;
 use WeakMap;
 
 /**
- * Lets Scramble see what the middleware of a route throws. Scramble only reads the action, so an
- * error a middleware answers before the action runs (a throttle, a check of the application's own
- * or of a package) is missing from the document.
+ * Adds what the middleware of a route throws to the errors of its operation: Scramble only reads
+ * the action.
  *
- * What each middleware throws is put in front of what the action throws, in the order a request
- * meets the middleware, before Scramble or anything else documents the error responses:
+ * - A middleware with `public static function throwsFor(Route $route): array` names its errors per
+ *   route. It is duck-typed, so a package declares it without depending on this one.
+ * - Any other middleware: what its `handle()` throws or declares with `@throws`.
+ * - The CSRF check (419) and the route model binding (404) are stated here, only where they apply.
  *
- * - a middleware that sits on a whole group but only refuses some routes tells which errors a
- *   route can get, with `public static function throwsFor(Route $route): array`. There is no
- *   interface to implement: a package declares it without depending on this one;
- * - of any other middleware, what its `handle()` throws or declares with `@throws`;
- * - the CSRF check answers 419, but only an operation that changes state on a path that is not
- *   excepted ({@see CsrfProtection});
- * - the route model binding answers 404, but only a route that has a parameter to bind.
- *
- * The errors are kept per route. Scramble holds one type per controller method, so two routes that
- * share an action would otherwise document each other's middleware.
+ * Kept per route: Scramble holds one type per controller method, so two routes that share an
+ * action would otherwise document each other's middleware.
  */
 final class ExceptionsOfMiddleware implements OperationTransformer
 {
     /**
-     * What each action throws by itself, as it was before any route added its middleware.
+     * What each action throws by itself, before any route added its middleware.
      *
      * @var WeakMap<object, list<Type>>|null
      */
@@ -94,7 +87,7 @@ final class ExceptionsOfMiddleware implements OperationTransformer
         }
 
         if (is_a($middlewareClass, SubstituteBindings::class, true)) {
-            // Stated here and not read from the middleware: Laravel declares it with `@throws` only since version 13.
+            // Not read from the middleware: Laravel declares it with `@throws` only since version 13.
             return $route->parameterNames() === [] ? [] : [new ObjectType(ModelNotFoundException::class)];
         }
 

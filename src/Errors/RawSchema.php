@@ -8,7 +8,7 @@ use Dedoc\Scramble\Support\Generator\Schema;
 use Dedoc\Scramble\Support\Generator\Types\Type;
 
 /**
- * A schema that is already written as a plain OpenAPI array, placed in Scramble's document as it is.
+ * A schema already written as a plain OpenAPI array, placed in Scramble's document as it is.
  */
 final class RawSchema extends Type
 {

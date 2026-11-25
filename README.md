@@ -70,6 +70,8 @@ public static function throwsFor(Route $route): array
 $this->assertDocumented($this->getJson('/api/articles/1'), 'get', '/articles/{article}');
 ```
 
+The document is generated once per test class, not once per test.
+
 ## Limits
 
 - Only a call whose target is known from the code is followed: a typed property or argument, a static call, `new`, `$this`. What runs behind an interface, the container, an event or a job declares its exceptions with `@throws`.
