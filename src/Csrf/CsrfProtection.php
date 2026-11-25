@@ -9,14 +9,14 @@ use Illuminate\Routing\Route;
 use Illuminate\Support\Str;
 
 /**
- * Tells whether Laravel checks the CSRF token of an operation: a request that is not a GET, HEAD or
- * OPTIONS, on a route that runs the CSRF middleware directly (the `web` group) or through Sanctum's
- * stateful stack (`statefulApi()`), on a path the application does not except from the check.
+ * Tells whether Laravel checks the CSRF token of an operation: one that changes state, on a route
+ * that runs the CSRF middleware (the `web` group, or Sanctum's `statefulApi()`), on a path the
+ * application does not except.
  */
 final readonly class CsrfProtection
 {
     /**
-     * Laravel's CSRF middleware by the name of each version.
+     * Laravel's CSRF middleware, as Laravel 13 and Laravel 12 name it.
      */
     private const array MIDDLEWARE = [
         'Illuminate\Foundation\Http\Middleware\PreventRequestForgery',
@@ -37,7 +37,7 @@ final readonly class CsrfProtection
     }
 
     /**
-     * Whether a middleware of a route is the CSRF check itself, or the stack of Sanctum that runs it.
+     * Whether a middleware is the CSRF check itself, or Sanctum's stateful stack that runs it.
      */
     public static function runsTheCheck(string $middlewareClass): bool
     {
@@ -45,36 +45,25 @@ final readonly class CsrfProtection
     }
 
     /**
-     * The CSRF middleware the route runs: its own, or the one Sanctum's stateful stack is configured with.
-     *
      * @return class-string|null
      */
     private function middlewareOf(Route $route): ?string
     {
-        foreach ($this->middleware->classesOf($route) as $middlewareClass) {
-            if (self::isCsrfMiddleware($middlewareClass)) {
-                return $middlewareClass;
-            }
+        $running = array_find($this->middleware->classesOf($route), self::runsTheCheck(...));
 
-            if (is_a($middlewareClass, RouteMiddleware::SANCTUM_STATEFUL, true)) {
-                $configured = config('sanctum.middleware.validate_csrf_token') ?? config('sanctum.middleware.verify_csrf_token');
-
-                return is_string($configured) && self::isCsrfMiddleware($configured) ? $configured : null;
-            }
+        if ($running === null || self::isCsrfMiddleware($running)) {
+            return $running;
         }
 
-        return null;
+        // Sanctum's stateful stack runs the CSRF middleware its config names.
+        $configured = config('sanctum.middleware.validate_csrf_token') ?? config('sanctum.middleware.verify_csrf_token');
+
+        return is_string($configured) && self::isCsrfMiddleware($configured) ? $configured : null;
     }
 
     private static function isCsrfMiddleware(string $middlewareClass): bool
     {
-        foreach (self::MIDDLEWARE as $csrfMiddleware) {
-            if (is_a($middlewareClass, $csrfMiddleware, true)) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any(self::MIDDLEWARE, static fn (string $csrf): bool => is_a($middlewareClass, $csrf, true));
     }
 
     /**
@@ -84,14 +73,10 @@ final readonly class CsrfProtection
      */
     private function isExcepted(Route $route, string $csrfMiddleware): bool
     {
-        $instance = app($csrfMiddleware);
-
-        foreach (method_exists($instance, 'getExcludedPaths') ? $instance->getExcludedPaths() : [] as $pattern) {
-            if (is_string($pattern) && Str::is($pattern === '/' ? $pattern : trim($pattern, '/'), $route->uri())) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any(
+            app($csrfMiddleware)->getExcludedPaths(),
+            static fn (mixed $pattern): bool => is_string($pattern)
+                && Str::is($pattern === '/' ? $pattern : trim($pattern, '/'), $route->uri()),
+        );
     }
 }

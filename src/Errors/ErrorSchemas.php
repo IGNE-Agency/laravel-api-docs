@@ -67,17 +67,23 @@ final class ErrorSchemas
      */
     public function add(array $schema, ?string $exceptionClass, int $status): string
     {
-        $name = $this->nameOf($schema, $status);
+        $fixed = self::fixedValues($schema);
+        $code = count($fixed) === 1 ? reset($fixed) : null;
+        $phrase = self::reasonPhrase($status) ?? 'Error '.$status;
+
+        $name = Str::studly($code ?? Str::slug($phrase, '_'));
+        // `internal_server_error` is InternalServerError, not InternalServerErrorError.
+        $name = str_ends_with($name, $this->suffix) ? $name : $name.$this->suffix;
         $this->put($name, $schema);
 
-        // Only an answer that is told apart from the others is the error of one class; one named after its
-        // status stands for every exception of that status.
-        $summary = count(self::fixedValues($schema)) === 1 ? self::summaryOf($exceptionClass) : null;
+        // Only an answer with a code of its own is the error of one class; one named after its status stands
+        // for every exception of that status.
+        $summary = $code === null ? null : self::summaryOf($exceptionClass);
 
         if ($summary !== null) {
             $this->descriptions[$name] = $summary;
         } else {
-            $this->descriptions[$name] ??= self::DESCRIPTIONS[$status] ?? (self::reasonPhrase($status) ?? 'Error '.$status).'.';
+            $this->descriptions[$name] ??= self::DESCRIPTIONS[$status] ?? $phrase.'.';
         }
 
         return $name;
@@ -142,7 +148,8 @@ final class ErrorSchemas
      */
     public function closedSet(): ?array
     {
-        $names = array_values(array_diff(array_keys($this->all()), array_keys($this->ofOneRequest)));
+        $names = array_keys(array_diff_key($this->schemas, $this->ofOneRequest));
+        sort($names);
 
         if ($names === []) {
             return null;
@@ -183,19 +190,6 @@ final class ErrorSchemas
     }
 
     /**
-     * @param  array<string, mixed>  $schema
-     */
-    private function nameOf(array $schema, int $status): string
-    {
-        $fixed = self::fixedValues($schema);
-        $value = count($fixed) === 1 ? reset($fixed) : Str::slug(self::reasonPhrase($status) ?? 'Error '.$status, '_');
-        $name = Str::studly($value);
-
-        // `internal_server_error` is InternalServerError, not InternalServerErrorError.
-        return str_ends_with($name, $this->suffix) ? $name : $name.$this->suffix;
-    }
-
-    /**
      * The member that is a fixed value in each of the schemas and a different one in each.
      *
      * @param  list<string>  $names
@@ -203,11 +197,11 @@ final class ErrorSchemas
      */
     private function discriminator(array $names): ?array
     {
-        foreach (array_keys(self::fixedValues($this->schemas[$names[0]] ?? [])) as $member) {
+        foreach (array_keys(self::fixedValues($this->schemas[$names[0]])) as $member) {
             $mapping = [];
 
             foreach ($names as $name) {
-                $value = self::fixedValues($this->schemas[$name] ?? [])[$member] ?? null;
+                $value = self::fixedValues($this->schemas[$name])[$member] ?? null;
 
                 if ($value === null || isset($mapping[$value])) {
                     continue 2;

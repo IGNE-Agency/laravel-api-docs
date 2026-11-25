@@ -16,13 +16,13 @@ use Dedoc\Scramble\Support\Type\ObjectType;
  *
  * Scramble reads the rules of an operation before it runs the operation transformers, so the rules
  * wait in a static property until the transformer that documents the validation error takes them.
+ *
+ * @phpstan-type Rules array<string, list<array{0: string, 1: list<mixed>}>> input => [rule name or class, parameters]
  */
 final class RequestRules implements AllRulesSchemasTransformer
 {
     /**
-     * input => [rule name or class, parameters]
-     *
-     * @var array<string, list<array{0: string, 1: list<mixed>}>>
+     * @var Rules
      */
     private static array $rules = [];
 
@@ -50,7 +50,7 @@ final class RequestRules implements AllRulesSchemasTransformer
     /**
      * The rules of the operation being documented, which are then forgotten.
      *
-     * @return array<string, list<array{0: string, 1: list<mixed>}>>
+     * @return Rules
      */
     public static function take(): array
     {

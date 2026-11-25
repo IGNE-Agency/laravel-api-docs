@@ -67,7 +67,7 @@ final readonly class SchemaFromSample
             ['object'] => self::mergeObjects($schemas),
             ['string'] => self::mergeStrings($schemas),
             ['array'] => self::mergeArrays($schemas),
-            default => count($types) === 1 && is_string($types[0]) ? ['type' => $types[0]] : ['anyOf' => $schemas],
+            default => ['anyOf' => $schemas],
         };
     }
 

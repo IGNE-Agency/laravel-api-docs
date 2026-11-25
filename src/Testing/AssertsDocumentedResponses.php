@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Igne\ApiDocs\Testing;
 
-use Dedoc\Scramble\Generator;
-use Dedoc\Scramble\Scramble;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Assert;
@@ -29,9 +27,7 @@ trait AssertsDocumentedResponses
      */
     protected function assertDocumented(TestResponse $response, string $method, string $path): TestResponse
     {
-        // Generated here, not fetched: the request of the test may be one the documentation route refuses.
-        // Encoded and decoded, so the document is the plain JSON a client reads.
-        $this->openApiDocument ??= json_decode((string) json_encode(app(Generator::class)(Scramble::getGeneratorConfig(Scramble::DEFAULT_API))), true);
+        $this->openApiDocument ??= GeneratedDocument::of(static::class);
 
         $operation = "{$method} {$path}";
         $responses = $this->openApiDocument['paths'][$path][strtolower($method)]['responses'] ?? null;

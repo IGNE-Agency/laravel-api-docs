@@ -7,34 +7,35 @@ namespace Igne\ApiDocs\Validation;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\ValidationRuleParser;
 use Illuminate\Validation\Validator;
 
 /**
- * Builds the validation errors of a request as its worst case, to ask the application what it
- * answers them with: every rule of every input has failed, so the answer shows everything a client
- * can get back.
+ * Builds the validation error of a request as its worst case, to ask the application what it
+ * answers: every rule of every input has failed, so the answer shows all a client can get back.
+ *
+ * @phpstan-import-type Rules from RequestRules
  */
-final readonly class ValidationSamples
+final class ValidationSamples
 {
     /**
-     * The name of the input the worst case of any request is built on: an input without a name.
+     * The input the worst case of an unknown request is built on.
      */
     public const string ANY_INPUT = 'input';
 
     private const string LOCALE = 'en';
 
     /**
-     * Two validation errors of one request, whose answers together show everything a client can
-     * get back: every rule of every input has failed, and every input has a message that was added
-     * without a rule (`ValidationException::withMessages()`, an `after()` hook).
+     * Two errors whose answers are merged: one where every rule failed, and one where every input
+     * has a message added without a rule (`ValidationException::withMessages()`, an `after()` hook).
      *
-     * @param  array<string, list<array{0: string, 1: list<mixed>}>>  $rulesByInput  input => [rule name or class, parameters]
+     * @param  Rules  $rulesByInput
      * @return list<ValidationException>
      */
-    public function ofRequest(array $rulesByInput): array
+    public static function ofRequest(array $rulesByInput): array
     {
-        $everyRuleFailed = $this->validator();
-        $messagesByHand = $this->validator();
+        $everyRuleFailed = self::validator();
+        $messagesByHand = self::validator();
 
         foreach ($rulesByInput as $input => $rules) {
             $attribute = self::attribute((string) $input);
@@ -42,7 +43,7 @@ final readonly class ValidationSamples
 
             foreach ($rules as [$rule, $parameters]) {
                 $isObject = str_contains($rule, '\\');
-                $name = $isObject ? $rule : self::ruleName($rule);
+                $name = $isObject ? $rule : ValidationRuleParser::parse($rule)[0];
 
                 // A rule without a message never fails by itself: `nullable`, `sometimes`, `bail`.
                 if (isset($failed[$name]) || (! $isObject && ! self::hasMessage($name))) {
@@ -53,7 +54,7 @@ final readonly class ValidationSamples
                 $failed[$name] = true;
             }
 
-            $messagesByHand->failByHand($attribute);
+            $messagesByHand->errors()->add($attribute, "The {$attribute} field is invalid.");
         }
 
         return array_values(array_filter(
@@ -63,63 +64,11 @@ final readonly class ValidationSamples
     }
 
     /**
-     * The validation error of a request nobody knows: one unnamed input that failed every rule
-     * Laravel has a message for.
+     * The error of a request nobody knows: one input that failed every rule Laravel has a message for.
      *
      * @return list<ValidationException>
      */
-    public function ofAnyRequest(): array
-    {
-        return $this->ofRequest($this->everyRule());
-    }
-
-    /**
-     * The name of a validation failure as the answer reports it: of an input that names an item of
-     * a list (`tags.*`), its first item.
-     */
-    public static function attribute(string $input): string
-    {
-        return str_replace('*', '0', $input);
-    }
-
-    /**
-     * A validator whose failures are set by hand instead of found by validating.
-     */
-    private function validator(): Validator
-    {
-        return new class(app('translator'), [], []) extends Validator
-        {
-            /**
-             * A rule failed: a string rule by its name, a rule object by its class. The message is
-             * one of its own, because the validator keeps a message of an input only once, and an
-             * answer tells the rules of an input apart by their messages.
-             *
-             * @param  list<string>  $parameters
-             */
-            public function fail(string $attribute, string $rule, array $parameters): void
-            {
-                $this->messages ?? $this->passes();
-                $this->failedRules[$attribute][$rule] = $parameters;
-                $this->messages->add($attribute, "The {$attribute} field failed the {$rule} rule.");
-            }
-
-            /**
-             * A message added without a rule.
-             */
-            public function failByHand(string $attribute): void
-            {
-                $this->messages ?? $this->passes();
-                $this->messages->add($attribute, "The {$attribute} field is invalid.");
-            }
-        };
-    }
-
-    /**
-     * Every rule Laravel has a message for, on one unnamed input.
-     *
-     * @return array<string, list<array{0: string, 1: list<mixed>}>>
-     */
-    private function everyRule(): array
+    public static function ofAnyRequest(): array
     {
         $lines = Lang::get('validation', [], self::LOCALE);
         $rules = [];
@@ -131,30 +80,47 @@ final readonly class ValidationSamples
             }
         }
 
-        return [self::ANY_INPUT => $rules];
+        return self::ofRequest([self::ANY_INPUT => $rules]);
     }
 
     /**
-     * Whether Laravel has a message for the rule, which is what makes a rule one that can fail. The
-     * English group is asked first: the framework ships it complete, a translation may lag behind.
+     * The name of an input as the answer reports it: `tags.*` fails as its first item, `tags.0`.
+     */
+    public static function attribute(string $input): string
+    {
+        return str_replace('*', '0', $input);
+    }
+
+    /**
+     * A validator whose failures are set by hand instead of found by validating.
+     */
+    private static function validator(): Validator
+    {
+        return new class(app('translator'), [], []) extends Validator
+        {
+            /**
+             * The message is unique per rule: the validator keeps a message of an input only once,
+             * and an answer tells the rules of an input apart by their messages.
+             *
+             * @param  list<string>  $parameters
+             */
+            public function fail(string $attribute, string $rule, array $parameters): void
+            {
+                // First the message: reading the errors of a new validator resets its failed rules.
+                $this->errors()->add($attribute, "The {$attribute} field failed the {$rule} rule.");
+                $this->failedRules[$attribute][$rule] = $parameters;
+            }
+        };
+    }
+
+    /**
+     * Only a rule with a message can fail. English first: the framework ships it complete, a
+     * translation may lag behind.
      */
     private static function hasMessage(string $rule): bool
     {
         $line = 'validation.'.Str::snake($rule);
 
         return Lang::has($line, self::LOCALE) || Lang::has($line);
-    }
-
-    /**
-     * The name the validator knows a rule by: `max` and `required_without_all` in StudlyCase, an
-     * alias by the rule it stands for.
-     */
-    private static function ruleName(string $rule): string
-    {
-        return match ($name = Str::studly($rule)) {
-            'Int' => 'Integer',
-            'Bool' => 'Boolean',
-            default => $name,
-        };
     }
 }

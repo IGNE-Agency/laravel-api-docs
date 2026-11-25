@@ -16,6 +16,7 @@ Route::prefix('api/fixtures')->group(function (): void {
     Route::post('articles/validated', [ArticleController::class, 'create']);
     Route::post('articles/{article}/publish', [ArticleController::class, 'publish']);
     Route::put('articles/{article}', [ArticleController::class, 'update'])->middleware('auth');
+    Route::delete('articles/{article}', [ArticleController::class, 'destroy']);
 
     // A middleware on a whole group that only refuses the routes it names.
     Route::middleware(MembersOnly::class)->group(function (): void {

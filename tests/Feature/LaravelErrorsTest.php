@@ -17,6 +17,14 @@ it('documents an error as Laravel answers it: a message, one schema per status',
         ->and($response['401']['content']['application/json']['schema'])->toBe(['$ref' => '#/components/schemas/UnauthorizedError']);
 });
 
+it('documents a status the code aborts with as Laravel answers it', function () {
+    $responses = $this->document['paths']['/fixtures/articles/{article}']['delete']['responses'];
+
+    expect(array_keys($responses))->toBe([204, 409])
+        ->and($responses['409']['content'])->toBe(['application/json' => ['schema' => ['$ref' => '#/components/schemas/ConflictError']]])
+        ->and($this->schemas['ConflictError']['properties'])->toBe(['message' => ['type' => 'string']]);
+});
+
 it('documents the validation error of a request with its inputs, as Laravel lists them', function () {
     $schema = $this->schemas['StoreArticleValidationError'];
 

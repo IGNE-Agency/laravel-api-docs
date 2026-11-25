@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Igne\ApiDocs\Errors;
 
 use Dedoc\Scramble\Contracts\OperationTransformer;
-use Dedoc\Scramble\Infer;
 use Dedoc\Scramble\Support\Generator\Header;
 use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\Generator\Reference;
@@ -25,35 +24,24 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use ReflectionNamedType;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
-use Throwable;
 
 /**
- * Documents the error responses of every operation as the application really answers them.
+ * Writes the error responses of an operation as the application really answers them: each exception
+ * the operation can throw is built, rendered by the application's exception handler, and the answer
+ * becomes the schema. Nothing describes an error format to this package.
  *
- * Nothing describes the shape of an error to this package. For each exception Scramble knows an
- * operation can throw (its action, the methods it calls, its middleware), a real exception is
- * built ({@see ErrorSamples}), the application's own exception handler answers it
- * ({@see AppAnswers}), and the answer is written down as a schema ({@see SchemaFromSample}). An
- * application that answers Laravel's `{ message }` is documented that way, one that answers RFC
- * 9457 Problem Details that way, with no setting to change.
+ * It is the only writer of error responses and runs after every other transformer.
  *
- * It is the only writer of error responses and runs after every other transformer. The validation
- * error of a request is built from the rules {@see RequestRules} recorded for the operation.
+ * @phpstan-import-type Rules from RequestRules
  */
-final class RenderedErrors implements OperationTransformer
+final readonly class RenderedErrors implements OperationTransformer
 {
-    private readonly ErrorSamples $samples;
-
     public function __construct(
-        Infer $infer,
-        TypeTransformer $openApiTransformer,
-        private readonly AppAnswers $answers,
-        private readonly ErrorSchemas $schemas,
-        private readonly SchemaFromSample $schemaFromSample,
-        private readonly ValidationSamples $validationSamples,
-    ) {
-        $this->samples = new ErrorSamples($infer, $openApiTransformer);
-    }
+        private TypeTransformer $openApiTransformer,
+        private AppAnswers $answers,
+        private ErrorSchemas $schemas,
+        private SchemaFromSample $schemaFromSample,
+    ) {}
 
     public function handle(Operation $operation, RouteInfo $routeInfo): void
     {
@@ -61,28 +49,32 @@ final class RenderedErrors implements OperationTransformer
 
         $this->schemas->anyPath ??= $routeInfo->route->uri();
 
-        // Per status: the content type, the headers and the names of the error schemas answered with it.
+        // status => the content type, the headers and the names of the error schemas answered with it
         $answered = [];
         foreach ($routeInfo->getActionType()?->exceptions ?? [] as $type) {
             if (! $type instanceof ObjectType) {
                 continue;
             }
 
+            // Without a named input the request is unknown: its validation error is the one of any request.
             $isValidation = is_a($type->name, ValidationException::class, true);
             $requestRules = $isValidation && $this->hasNamedInput($rules) ? $rules : null;
             $samples = match (true) {
-                $requestRules !== null => $this->validationSamples->ofRequest($requestRules),
-                $isValidation => $this->validationSamples->ofAnyRequest(),
-                default => $this->samples->of($type),
+                $requestRules !== null => ValidationSamples::ofRequest($requestRules),
+                $isValidation => ValidationSamples::ofAnyRequest(),
+                default => ErrorSamples::of($type, $this->openApiTransformer),
             };
 
-            $answers = $this->errorAnswers($samples, $routeInfo);
+            $answers = array_values(array_filter(
+                $this->answers->toEach($samples, $routeInfo->method, $routeInfo->route->uri()),
+                static fn (array $answer): bool => $answer['status'] >= HttpResponse::HTTP_BAD_REQUEST,
+            ));
 
             if ($answers === []) {
                 continue;
             }
 
-            // Several samples of one error (a validation error has two) are answers to merge into one schema.
+            // Several samples of one error (a validation error has two) merge into one schema.
             $status = $answers[0]['status'];
             $schemas = [];
             foreach ($answers as $answer) {
@@ -107,7 +99,7 @@ final class RenderedErrors implements OperationTransformer
 
         ksort($answered);
 
-        // What Scramble documented for a status the application was asked about is replaced; any other response stays.
+        // Scramble's own response for an answered status is replaced; any other response stays.
         $operation->responses = array_values(array_filter(
             $operation->responses ?? [],
             static fn (Response|Reference $response): bool => ! $response instanceof Response
@@ -118,27 +110,6 @@ final class RenderedErrors implements OperationTransformer
             $names = array_values($error['names']);
             $operation->addResponse($this->errorResponse($status, $error['contentType'], $error['headers'], $names));
         }
-    }
-
-    /**
-     * The answers of the application to the samples of one error, those that are an error.
-     *
-     * @param  list<Throwable>  $samples
-     * @return list<array{status: int, contentType: string, headers: array<string, string>, body: array<string, mixed>}>
-     */
-    private function errorAnswers(array $samples, RouteInfo $routeInfo): array
-    {
-        $answers = [];
-
-        foreach ($samples as $exception) {
-            $answer = $this->answers->to($exception, $routeInfo->method, $routeInfo->route->uri());
-
-            if ($answer !== null && $answer['status'] >= HttpResponse::HTTP_BAD_REQUEST) {
-                $answers[] = $answer;
-            }
-        }
-
-        return $answers;
     }
 
     /**
@@ -164,7 +135,7 @@ final class RenderedErrors implements OperationTransformer
     /**
      * Whether the rules name an input of the request, not only items of a list (`tags.*`).
      *
-     * @param  array<string, list<array{0: string, 1: list<mixed>}>>  $rules
+     * @param  Rules  $rules
      */
     private function hasNamedInput(array $rules): bool
     {
@@ -172,8 +143,7 @@ final class RenderedErrors implements OperationTransformer
     }
 
     /**
-     * The name of the request a validation error belongs to: its Form Request without the
-     * `Request` suffix (`LoginRequest` is `Login`), or else the operation (route `api.news.index` is `NewsIndex`).
+     * The Form Request without its suffix (`LoginRequest` is `Login`), else the operation (`NewsIndex`).
      */
     private function requestName(Operation $operation, RouteInfo $routeInfo): string
     {

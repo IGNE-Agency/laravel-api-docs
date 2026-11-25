@@ -29,7 +29,7 @@ final readonly class RouteMiddleware
     {
         $classes = [];
 
-        foreach ($this->router->resolveMiddleware($route->gatherMiddleware(), $route->excludedMiddleware()) as $middleware) {
+        foreach ($this->router->gatherRouteMiddleware($route) as $middleware) {
             if (is_string($middleware)) {
                 $classes[] = Str::before($middleware, ':');
             }

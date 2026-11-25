@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Igne\ApiDocs\Packages;
 
 use Dedoc\Scramble\Infer\Configuration\DefinitionMatcher;
-use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 
 /**
@@ -49,8 +48,7 @@ final class RoutedPackages implements DefinitionMatcher
         $packages = [];
 
         foreach ($this->router->getRoutes() as $route) {
-            $controller = $route instanceof Route ? $route->getAction('controller') : null;
-            $class = is_string($controller) ? explode('@', $controller)[0] : null;
+            $class = $route->getControllerClass();
 
             if ($class !== null && Package::isInVendor($class) === true && ($package = Package::of($class)) !== null) {
                 $packages[$package] = true;

@@ -84,12 +84,9 @@ final class ApiDocsServiceProvider extends ServiceProvider
         $errors = config('api-docs.errors.enabled') === true;
         $security = config('api-docs.security') === true;
 
-        if ($errors) {
-            Scramble::configure()->withRuleTransformers([RequestRules::class]);
-        }
-
         $this->app->booted(static function () use ($errors, $security): void {
             Scramble::configure()
+                ->withRuleTransformers($errors ? [RequestRules::class] : [])
                 ->withOperationTransformers(array_values(array_filter([
                     config('api-docs.csrf') === true ? CsrfHeader::class : null,
                     $security ? SecuritySchemes::class : null,

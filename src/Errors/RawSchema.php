@@ -37,9 +37,4 @@ final class RawSchema extends Type
     {
         return $this->schema;
     }
-
-    public function toArray()
-    {
-        return $this->schema;
-    }
 }
