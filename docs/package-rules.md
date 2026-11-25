@@ -48,7 +48,7 @@ A route of the package points at a controller of the package, with a Form Reques
 
 A route may point straight at the controller of a library the package builds on, such as Laravel Fortify, as long as the package changes nothing about what that route accepts and answers. Such a controller is read as it is: its Form Request, the response class bound to its contract, the actions it calls.
 
-Where the package adds an input or changes an answer, the route gets a controller of the package, which hands the request over. That is no wrapper for the sake of documentation: the package answers something else there, so it says so.
+Where the package adds an input or changes an answer in a way that cannot be read from code (the answer is built inside the library's own pipeline, the input is read deep inside the package), the route gets a controller of the package, which hands the request over. Be clear about what that is: the controller adds no behaviour. It exists so that what the route accepts and answers is written down where a documentation tool reads it. Use it only for such a route, and prefer making the behaviour readable (a Form Request that validates the input, a response class bound to the library's contract) when that is possible.
 
 ```php
 /**
