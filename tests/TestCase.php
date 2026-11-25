@@ -8,11 +8,12 @@ use Dedoc\Scramble\Infer\Context;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\ScrambleServiceProvider;
 use Igne\ScrambleExtensions\ScrambleExtensionsServiceProvider;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Orchestra\Testbench\TestCase as Testbench;
 
 /**
- * An application with Scramble, the package and the fixture routes. The errors are documented as
- * Scramble documents them: nothing here changes what a response looks like.
+ * An application with Scramble, the package and the fixture routes. Nothing gives its errors a
+ * shape of their own, so they are Laravel's.
  */
 abstract class TestCase extends Testbench
 {
@@ -34,6 +35,12 @@ abstract class TestCase extends Testbench
     {
         // The document is read without the access check of Scramble's own middleware.
         $app['config']->set('scramble.middleware', []);
+
+        // The session and its cookies, for the routes of the `web` group.
+        $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('k', 32)));
+
+        // As an application excepts a path from the CSRF check in its bootstrap/app.php.
+        ValidateCsrfToken::except(['api/fixtures/webhook']);
     }
 
     protected function defineRoutes($router): void

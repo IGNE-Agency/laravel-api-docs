@@ -9,7 +9,7 @@ namespace Igne\ScrambleExtensions\Errors;
  * values themselves tell it:
  *
  * - a string that looks like an identifier (`two_factor_required`, `required`) is a fixed value,
- *   unless its member has a free-text name (`message`, `detail`);
+ *   unless it is the value of a member with a free-text name (`message`, `detail`);
  * - a UUID or a URI gets its format, any other string is a string;
  * - no value is copied into the schema except a fixed one, so the document does not change with
  *   the machine, the moment or the language it is generated in.
@@ -32,7 +32,7 @@ final readonly class SchemaFromSample
             is_float($value) => ['type' => 'number'],
             is_string($value) => $this->string($value, $member),
             $value === [] => ['type' => 'array'],
-            is_array($value) && array_is_list($value) => ['type' => 'array', 'items' => self::merge(array_map(fn (mixed $item): array => $this->of($item, $member), $value))],
+            is_array($value) && array_is_list($value) => ['type' => 'array', 'items' => self::merge(array_map(fn (mixed $item): array => $this->of($item), $value))],
             is_array($value) => $this->object($value),
             default => ['type' => 'null'],
         };
@@ -47,7 +47,12 @@ final readonly class SchemaFromSample
      */
     public static function merge(array $schemas): array
     {
-        $schemas = array_values(array_unique($schemas, SORT_REGULAR));
+        // In the order they were met, each once.
+        $unique = [];
+        foreach ($schemas as $schema) {
+            $unique[(string) json_encode($schema)] ??= $schema;
+        }
+        $schemas = array_values($unique);
 
         if (count($schemas) <= 1) {
             return $schemas[0] ?? [];

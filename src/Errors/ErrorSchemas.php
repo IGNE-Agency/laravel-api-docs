@@ -75,7 +75,9 @@ final class ErrorSchemas
         if ($requestName !== null) {
             $this->ofOneRequest[$name] = true;
             $this->descriptions[$name] = "A validation error of {$requestName}: its inputs and the rules each can fail.";
-        } elseif (($summary = self::summaryOf($exceptionClass)) !== null) {
+        } elseif (count(self::fixedValues($schema)) === 1 && ($summary = self::summaryOf($exceptionClass)) !== null) {
+            // Only an answer that is told apart from the others is the error of one class; one named after its
+            // status stands for every exception of that status.
             $this->descriptions[$name] = $summary;
         } else {
             $this->descriptions[$name] ??= self::DESCRIPTIONS[$status] ?? self::reasonPhrase($status).'.';

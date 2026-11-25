@@ -25,4 +25,17 @@ final class ArticleController
 
         return response()->noContent();
     }
+
+    public function create(StoreArticleRequest $request): Response
+    {
+        return response()->noContent();
+    }
+
+    /**
+     * @throws ArticleLockedException
+     */
+    public function update(): Response
+    {
+        throw new ArticleLockedException;
+    }
 }

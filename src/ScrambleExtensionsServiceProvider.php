@@ -46,6 +46,10 @@ final class ScrambleExtensionsServiceProvider extends ServiceProvider
             Scramble::registerExtensions([ExceptionsOfCalledMethods::class]);
         }
 
+        if (config('scramble-extensions.packages') === true) {
+            Scramble::infer()->configure()->buildDefinitionsUsingAstFor([new RoutedPackages($this->app->make('router'))]);
+        }
+
         if (config('scramble-extensions.middleware') === true) {
             Scramble::configure()->withOperationTransformers(
                 static fn (OperationTransformers $transformers): OperationTransformers => $transformers->prepend(ExceptionsOfMiddleware::class),

@@ -20,6 +20,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Packages with routes
+    |--------------------------------------------------------------------------
+    |
+    | Scramble reads the classes under vendor/ by their signatures only. When
+    | true, a package that has a controller on a route is read like the
+    | application: the source of its classes is parsed, so its Resources
+    | keep the types of the values they take from other classes of the
+    | package.
+    |
+    */
+
+    'packages' => true,
+
+    /*
+    |--------------------------------------------------------------------------
     | Errors of middleware
     |--------------------------------------------------------------------------
     |
