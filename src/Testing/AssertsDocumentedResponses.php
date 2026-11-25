@@ -30,7 +30,8 @@ trait AssertsDocumentedResponses
     protected function assertDocumented(TestResponse $response, string $method, string $path): TestResponse
     {
         // Generated here, not fetched: the request of the test may be one the documentation route refuses.
-        $this->openApiDocument ??= app(Generator::class)(Scramble::getGeneratorConfig(Scramble::DEFAULT_API));
+        // Encoded and decoded, so the document is the plain JSON a client reads.
+        $this->openApiDocument ??= json_decode((string) json_encode(app(Generator::class)(Scramble::getGeneratorConfig(Scramble::DEFAULT_API))), true);
 
         $operation = "{$method} {$path}";
         $responses = $this->openApiDocument['paths'][$path][strtolower($method)]['responses'] ?? null;
