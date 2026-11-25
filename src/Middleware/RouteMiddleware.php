@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Igne\ApiDocs\Middleware;
 
+use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Str;
@@ -18,7 +19,11 @@ final readonly class RouteMiddleware
      */
     public const string SANCTUM_STATEFUL = 'Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful';
 
-    public function __construct(private Router $router) {}
+    /**
+     * The kernel is only asked for so it is built: it is what tells the router the middleware groups
+     * and aliases, and a console command (`scramble:export`) has not built it.
+     */
+    public function __construct(private Router $router, Kernel $kernel) {}
 
     /**
      * The class of each middleware of the route, in the order a request meets them, without parameters.

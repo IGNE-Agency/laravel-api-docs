@@ -41,7 +41,11 @@ final class ArticleController
 
     public function destroy(): Response
     {
-        abort_if(Article::query()->exists(), 409);
+        abort_if(Article::query()->doesntExist(), 409);
+
+        if (Article::query()->count() > 1) {
+            throw new ArticleHasCommentsException;
+        }
 
         return response()->noContent();
     }

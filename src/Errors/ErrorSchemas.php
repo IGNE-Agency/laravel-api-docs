@@ -263,7 +263,7 @@ final class ErrorSchemas
         }
 
         $summary = [];
-        foreach (explode("\n", $docComment) as $line) {
+        foreach (explode("\n", Str::beforeLast($docComment, '*/')) as $line) {
             $line = trim(ltrim(trim($line), '/*'));
 
             if (str_starts_with($line, '@') || ($line === '' && $summary !== [])) {

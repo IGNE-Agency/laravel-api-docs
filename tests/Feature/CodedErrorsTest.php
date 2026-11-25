@@ -24,6 +24,10 @@ it('documents an error in the format of the application, named after the fixed v
         ->and($this->schemas['ArticleLockedError']['description'])->toBe('The article is being edited by someone else. Try again once they are done.');
 });
 
+it('reads the description of an error from a docblock of one line too', function () {
+    expect($this->schemas['ArticleHasCommentsError']['description'])->toBe('The article still has comments. Delete them first.');
+});
+
 it('tells the errors of one status apart by the member that is fixed and different in each', function () {
     $schema = $this->document['paths']['/fixtures/articles']['post']['responses']['403']['content'][CodedErrorsServiceProvider::CONTENT_TYPE]['schema'] ?? null;
 
