@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions\Tests\Fixtures;
+namespace Igne\ApiDocs\Tests\Fixtures;
 
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -24,5 +24,23 @@ final class ArticleController
         $archive->archive();
 
         return response()->noContent();
+    }
+
+    public function create(StoreArticleRequest $request): Response
+    {
+        return response()->noContent();
+    }
+
+    /**
+     * @throws ArticleLockedException
+     */
+    public function update(): Response
+    {
+        throw new ArticleLockedException;
+    }
+
+    public function publish(PublishArticle $publish): ArticlePublishedResponse|ArticleNotPublishedResponse
+    {
+        return $publish(false) ? app(ArticlePublishedResponse::class) : app(ArticleNotPublishedResponse::class);
     }
 }

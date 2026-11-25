@@ -22,6 +22,11 @@ jobs:
           php-version: '8.4'
           coverage: none
 
+      # igne-agency/laravel-auth, which the package is tested against, needs Laravel 13.
+      - name: Leave out the auth package on Laravel 12
+        if: matrix.laravel == '12.*'
+        run: composer remove --dev igne-agency/laravel-auth --no-update --no-interaction
+
       - name: Install dependencies
         run: composer update --with="illuminate/support:${{ matrix.laravel }}" --prefer-dist --no-interaction
 
