@@ -23,7 +23,7 @@ use ReflectionClass;
  * way down: controller, service, repository.
  *
  * Only a call whose target is known from the code is followed: a typed property or argument, a
- * static call, `new`, `$this`. What runs behind an interface, the container (`app(Service::class)`),
+ * static call, `new`, `$this`. The application's code is followed, and so is a package inside itself. What runs behind an interface, the container (`app(Service::class)`),
  * an event or a job is not; such a method declares its exceptions with `@throws`.
  */
 final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
@@ -39,7 +39,7 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
     {
         $class = $this->calledClass($node, $scope);
 
-        if ($class === null || ! $node->name instanceof Identifier || ! $this->isApplicationCode($class)) {
+        if ($class === null || ! $node->name instanceof Identifier || ! $this->isReadable($class, $scope->classDefinition()?->name)) {
             return [];
         }
 
@@ -81,9 +81,12 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
     }
 
     /**
-     * The framework and the packages document their exceptions with `@throws`; their code is not read.
+     * The application's own code, and a call a package makes inside itself: a controller of a
+     * package that calls a service of the same package is followed like the application's. The
+     * framework and any other package document their exceptions with `@throws`; their code is not
+     * read.
      */
-    private function isApplicationCode(string $class): bool
+    private function isReadable(string $class, ?string $caller): bool
     {
         if (! class_exists($class)) {
             return false;
@@ -91,6 +94,24 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
 
         $path = (new ReflectionClass($class))->getFileName();
 
-        return $path !== false && ! str_contains($path, DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR);
+        if ($path === false) {
+            return false;
+        }
+
+        if (! str_contains($path, DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR)) {
+            return true;
+        }
+
+        return $caller !== null && self::package($caller) !== null && self::package($caller) === self::package($class);
+    }
+
+    /**
+     * The vendor and package part of a class name (`Igne\Auth`), null for a class without one.
+     */
+    private static function package(string $class): ?string
+    {
+        $segments = explode('\\', ltrim($class, '\\'));
+
+        return count($segments) > 2 ? $segments[0].'\\'.$segments[1] : null;
     }
 }

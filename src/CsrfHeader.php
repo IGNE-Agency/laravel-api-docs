@@ -1,0 +1,38 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Igne\ScrambleExtensions;
+
+use Dedoc\Scramble\Contracts\OperationTransformer;
+use Dedoc\Scramble\Support\Generator\Operation;
+use Dedoc\Scramble\Support\Generator\Parameter;
+use Dedoc\Scramble\Support\Generator\Schema;
+use Dedoc\Scramble\Support\Generator\Types\StringType;
+use Dedoc\Scramble\Support\RouteInfo;
+
+/**
+ * Documents the `X-XSRF-TOKEN` header on every operation whose CSRF token Laravel checks
+ * ({@see Csrf}). Whether the user is logged in does not matter: a guest operation that changes
+ * state is protected as well. The 419 such an operation answers without a valid token is an error
+ * of its middleware, which {@see ExceptionsOfMiddleware} adds.
+ */
+final readonly class CsrfHeader implements OperationTransformer
+{
+    public const string HEADER = 'X-XSRF-TOKEN';
+
+    public function __construct(private Csrf $csrf) {}
+
+    public function handle(Operation $operation, RouteInfo $routeInfo): void
+    {
+        if (! $this->csrf->protects($routeInfo->route, $routeInfo->method)) {
+            return;
+        }
+
+        $operation->addParameters([
+            Parameter::make(self::HEADER, 'header')
+                ->description('With the session cookie: the value of the `XSRF-TOKEN` cookie, which `GET /sanctum/csrf-cookie` sets. Not needed with a bearer token. Without a valid one the answer is 419: fetch the cookie again and retry.')
+                ->setSchema(Schema::fromType(new StringType)),
+        ]);
+    }
+}
