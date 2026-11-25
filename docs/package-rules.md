@@ -42,11 +42,13 @@ final class TwoFactorRequiredException extends AccessDeniedHttpException
 
 Put `@throws` on every controller action and on a middleware's `handle()`. Code under `vendor/` is partly read by its signatures and PHPDoc only, so an undeclared exception is an undocumented error.
 
-## 4. Own the HTTP boundary
+## 4. Own the routes you change
 
-Every route points at a controller of the package, with a Form Request in and a Resource (or a typed or `@response` return) out, and a PHPDoc summary. Never point a route straight at a controller of another package, and never at an action inherited from one: nobody can read or annotate those.
+A route of the package points at a controller of the package, with a Form Request in and a Resource (or a typed or `@response` return) out, and a PHPDoc summary.
 
-When another library does the work, the controller hands the request over:
+A route may point straight at the controller of a library the package builds on, such as Laravel Fortify, as long as the package changes nothing about what that route accepts and answers. Such a controller is read as it is: its Form Request, the response class bound to its contract, the actions it calls.
+
+Where the package adds an input or changes an answer, the route gets a controller of the package, which hands the request over. That is no wrapper for the sake of documentation: the package answers something else there, so it says so.
 
 ```php
 /**
@@ -98,6 +100,6 @@ Without it, `@throws` on `handle()` counts for every route the middleware is on.
 
 ## Tests every such package has
 
-- The architecture test above, plus: every exception extends an HTTP exception and does not render itself, and every route points at a controller of the package.
+- The architecture test above, plus: every exception extends an HTTP exception and does not render itself, and every route points at a controller of the package or of the library it builds on.
 - A snapshot of the name and status of each error, so a rename fails a test.
 - One error followed through every combination: the package alone, with an error package, with a documentation package, with both. The other packages are `require-dev` only.

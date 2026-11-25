@@ -23,7 +23,7 @@ use ReflectionClass;
  * way down: controller, service, repository.
  *
  * Only a call whose target is known from the code is followed: a typed property or argument, a
- * static call, `new`, `$this`. The application's code is followed, and so is a package inside itself. What runs behind an interface, the container (`app(Service::class)`),
+ * static call, `new`, `$this`, and an object that is called itself (an action class). The application's code is followed, and so is a package inside itself. What runs behind an interface, the container (`app(Service::class)`),
  * an event or a job is not; such a method declares its exceptions with `@throws`.
  */
 final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
@@ -38,12 +38,13 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
     public function getException(Expr $node, Scope $scope): array
     {
         $class = $this->calledClass($node, $scope);
+        $name = $this->calledMethod($node);
 
-        if ($class === null || ! $node->name instanceof Identifier || ! $this->isReadable($class, $scope->classDefinition()?->name)) {
+        if ($class === null || $name === null || ! $this->isReadable($class, $scope->classDefinition()?->name)) {
             return [];
         }
 
-        $method = $class.'::'.$node->name->name;
+        $method = $class.'::'.$name;
 
         if (isset(self::$following[$method])) {
             return [];
@@ -52,10 +53,25 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
         self::$following[$method] = true;
 
         try {
-            return Scramble::infer()->analyzeClass($class)->getMethodDefinition($node->name->name)?->type->exceptions ?? [];
+            return Scramble::infer()->analyzeClass($class)->getMethodDefinition($name)?->type->exceptions ?? [];
         } finally {
             unset(self::$following[$method]);
         }
+    }
+
+    /**
+     * The method a call runs: the one it names, or `__invoke` when an object itself is called
+     * (`$action($user)`), as an action class is.
+     */
+    private function calledMethod(Expr $node): ?string
+    {
+        if ($node instanceof Expr\FuncCall) {
+            return $node->name instanceof Expr ? '__invoke' : null;
+        }
+
+        return ($node instanceof Expr\MethodCall || $node instanceof Expr\NullsafeMethodCall || $node instanceof Expr\StaticCall) && $node->name instanceof Identifier
+            ? $node->name->name
+            : null;
     }
 
     /**
@@ -64,8 +80,9 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
      */
     private function calledClass(Expr $node, Scope $scope): ?string
     {
-        if ($node instanceof Expr\MethodCall || $node instanceof Expr\NullsafeMethodCall) {
-            $object = (new ShallowTypeResolver(app(LazyShallowReflectionIndex::class)))->resolve($scope, $scope->getType($node->var));
+        if ($node instanceof Expr\MethodCall || $node instanceof Expr\NullsafeMethodCall || ($node instanceof Expr\FuncCall && $node->name instanceof Expr)) {
+            $called = $node instanceof Expr\FuncCall ? $node->name : $node->var;
+            $object = (new ShallowTypeResolver(app(LazyShallowReflectionIndex::class)))->resolve($scope, $scope->getType($called));
             $object = $object instanceof TemplateType ? $object->is : $object;
 
             return $object instanceof ObjectType ? $object->name : null;

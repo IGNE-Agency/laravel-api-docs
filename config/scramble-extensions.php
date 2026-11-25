@@ -35,6 +35,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Bound responses
+    |--------------------------------------------------------------------------
+    |
+    | A controller of a package such as Laravel Fortify answers through a
+    | response contract the container resolves: return app(LoginResponse::class).
+    | When true, the contract is followed to the class that is bound to it,
+    | the package's own or one put in its place, and what that class answers
+    | a JSON client is documented.
+    |
+    */
+
+    'bound_responses' => true,
+
+    /*
+    |--------------------------------------------------------------------------
     | Errors of middleware
     |--------------------------------------------------------------------------
     |

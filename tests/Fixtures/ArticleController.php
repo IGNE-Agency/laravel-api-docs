@@ -38,4 +38,9 @@ final class ArticleController
     {
         throw new ArticleLockedException;
     }
+
+    public function publish(PublishArticle $publish): ArticlePublishedResponse|ArticleNotPublishedResponse
+    {
+        return $publish(false) ? app(ArticlePublishedResponse::class) : app(ArticleNotPublishedResponse::class);
+    }
 }

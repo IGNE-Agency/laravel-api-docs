@@ -46,6 +46,10 @@ final class ScrambleExtensionsServiceProvider extends ServiceProvider
             Scramble::registerExtensions([ExceptionsOfCalledMethods::class]);
         }
 
+        if (config('scramble-extensions.bound_responses') === true) {
+            Scramble::registerExtensions([BoundResponses::class, ContainerCalls::class]);
+        }
+
         if (config('scramble-extensions.packages') === true) {
             Scramble::infer()->configure()->buildDefinitionsUsingAstFor([new RoutedPackages($this->app->make('router'))]);
         }

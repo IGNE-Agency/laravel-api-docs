@@ -45,6 +45,19 @@ it('documents how a client authenticates on a route behind auth, and nothing on 
         ->and($this->document['paths']['/fixtures/articles']['get'])->not->toHaveKey('security');
 });
 
+it('follows a response contract to the class that is bound to it, and documents what that answers a JSON client', function () {
+    $responses = $this->document['paths']['/fixtures/articles/{article}/publish']['post']['responses'];
+
+    // The empty 202 of the bound class; no 200 for the contract that only throws for a JSON client.
+    expect($responses)->toHaveKey('202')
+        ->and($responses['202'])->not->toHaveKey('content')
+        ->and($responses)->not->toHaveKey('200');
+});
+
+it('follows a call to an object that is called itself, as an action class is', function () {
+    expect($this->document['paths']['/fixtures/articles/{article}/publish']['post']['responses'])->toHaveKey('423');
+});
+
 it('writes the same document every time', function () {
     expect($this->document())->toBe($this->document);
 });

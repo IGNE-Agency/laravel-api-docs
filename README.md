@@ -27,6 +27,7 @@ php artisan vendor:publish --tag=scramble-extensions-config
 | Config key | What it adds to the document |
 |---|---|
 | `called_methods` | The errors thrown by the methods an action calls, all the way down (controller, service, repository). The application's code is followed, and a package inside itself. |
+| `bound_responses` | The answer of a controller that answers through a response contract (`return app(LoginResponse::class)`, as Laravel Fortify does): the contract is followed to the class bound to it. A call to an action class (`$action($user)`) is followed too. |
 | `packages` | A package with a controller on a route is read like the application, so its Resources keep the types of the values they take from other classes of the package. |
 | `middleware` | The errors the middleware of a route throws: a throttle, a check of the application or of a package, the CSRF 419, the model-binding 404. Kept per route. |
 | `pagination` | Named schemas for a paginated list (`PaginationLinks`, `PaginationMeta`, `Paginated<Resource>`). |
