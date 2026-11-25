@@ -102,4 +102,11 @@ Without it, `@throws` on `handle()` counts for every route the middleware is on.
 
 - The architecture test above, plus: every exception extends an HTTP exception and does not render itself, and every route points at a controller of the package or of the library it builds on.
 - A snapshot of the name and status of each error, so a rename fails a test.
-- One error followed through every combination: the package alone, with an error package, with a documentation package, with both. The other packages are `require-dev` only.
+- One error answered by the package alone, in Laravel's own shape.
+
+The package does not require an error package or a documentation package, not for development either, and its tests know neither. A test that puts them together belongs to the package that adapts:
+
+- the error package installs a package that follows these rules for development and tests that it gives the errors of that package its own shape;
+- the documentation package does the same and tests that it documents the routes of that package from its code.
+
+Both do so for `igne-agency/laravel-auth`, in `tests/Packages`.

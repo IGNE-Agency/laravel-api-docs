@@ -82,3 +82,5 @@ composer test
 ```
 
 The tests run without any error package installed: one application answers Laravel's errors, another a format made up for the tests.
+
+`tests/Packages` documents a real package that knows nothing of this one: [`igne-agency/laravel-auth`](https://github.com/IGNE-Agency/laravel-auth), installed for development only. A package is tested together with this one here, never in the package itself. The auth package needs Laravel 13, so on Laravel 12 it is left out and these tests define nothing.

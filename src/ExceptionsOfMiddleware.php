@@ -10,6 +10,7 @@ use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\RouteInfo;
 use Dedoc\Scramble\Support\Type\ObjectType;
 use Dedoc\Scramble\Support\Type\Type;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
@@ -103,8 +104,9 @@ final class ExceptionsOfMiddleware implements OperationTransformer
             return $this->csrf->protects($route, $method) ? [new ObjectType(TokenMismatchException::class)] : [];
         }
 
-        if (is_a($middlewareClass, SubstituteBindings::class, true) && $route->parameterNames() === []) {
-            return [];
+        if (is_a($middlewareClass, SubstituteBindings::class, true)) {
+            // Stated here and not read from the middleware: Laravel declares it with `@throws` only since version 13.
+            return $route->parameterNames() === [] ? [] : [new ObjectType(ModelNotFoundException::class)];
         }
 
         if (method_exists($middlewareClass, 'throwsFor')) {
