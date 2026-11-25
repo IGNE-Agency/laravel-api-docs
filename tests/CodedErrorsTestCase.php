@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions\Tests;
+namespace Igne\ApiDocs\Tests;
 
-use Igne\ScrambleExtensions\Tests\Fixtures\CodedErrorsServiceProvider;
+use Igne\ApiDocs\Tests\Fixtures\CodedErrorsServiceProvider;
 
 /**
  * The application with an error format of its own (see {@see CodedErrorsServiceProvider}).

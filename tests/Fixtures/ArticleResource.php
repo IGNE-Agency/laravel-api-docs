@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions\Tests\Fixtures;
+namespace Igne\ApiDocs\Tests\Fixtures;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;

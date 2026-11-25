@@ -1,5 +1,5 @@
 {
-    "name": "igne-agency/laravel-scramble-extensions",
+    "name": "igne-agency/laravel-api-docs",
     "description": "Scramble extensions for any Laravel API: the errors of middleware and of the methods an action calls, and named schemas for paginated lists.",
     "type": "library",
     "license": "MIT",
@@ -16,18 +16,18 @@
     },
     "autoload": {
         "psr-4": {
-            "Igne\\ScrambleExtensions\\": "src/"
+            "Igne\\ApiDocs\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Igne\\ScrambleExtensions\\Tests\\": "tests/"
+            "Igne\\ApiDocs\\Tests\\": "tests/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "Igne\\ScrambleExtensions\\ScrambleExtensionsServiceProvider"
+                "Igne\\ApiDocs\\ApiDocsServiceProvider"
             ]
         }
     },

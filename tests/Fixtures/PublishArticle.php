@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions\Tests\Fixtures;
+namespace Igne\ApiDocs\Tests\Fixtures;
 
 /**
  * An action class: an object that is called itself.

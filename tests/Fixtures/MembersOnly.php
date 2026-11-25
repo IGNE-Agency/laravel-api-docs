@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions\Tests\Fixtures;
+namespace Igne\ApiDocs\Tests\Fixtures;
 
 use Closure;
 use Illuminate\Http\Request;

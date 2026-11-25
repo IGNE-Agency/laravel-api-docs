@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions;
+namespace Igne\ApiDocs;
 
 use Dedoc\Scramble\Contracts\OperationTransformer;
 use Dedoc\Scramble\Support\Generator\Operation;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions\Errors;
+namespace Igne\ApiDocs\Errors;
 
 /**
  * Writes the schema of a real JSON answer. Nothing is known about the shape beforehand, so the

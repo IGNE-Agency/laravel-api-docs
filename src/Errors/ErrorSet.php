@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions\Errors;
+namespace Igne\ApiDocs\Errors;
 
 use Dedoc\Scramble\Contracts\DocumentTransformer;
 use Dedoc\Scramble\Infer;
@@ -69,10 +69,10 @@ final readonly class ErrorSet implements DocumentTransformer
         $closedSet = $this->schemas->closedSet();
 
         if ($closedSet !== null) {
-            $document->components->addSchema((string) config('scramble-extensions.errors.set', 'ApiError'), Schema::fromType(new RawSchema($closedSet['errors'])));
+            $document->components->addSchema((string) config('api-docs.errors.set', 'ApiError'), Schema::fromType(new RawSchema($closedSet['errors'])));
 
             if ($closedSet['codes'] !== null) {
-                $document->components->addSchema((string) config('scramble-extensions.errors.codes', 'ApiErrorCode'), Schema::fromType(new RawSchema($closedSet['codes'])));
+                $document->components->addSchema((string) config('api-docs.errors.codes', 'ApiErrorCode'), Schema::fromType(new RawSchema($closedSet['codes'])));
             }
         }
 

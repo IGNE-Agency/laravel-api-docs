@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions\Tests;
+namespace Igne\ApiDocs\Tests;
 
 use Dedoc\Scramble\Infer\Context;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\ScrambleServiceProvider;
-use Igne\ScrambleExtensions\ScrambleExtensionsServiceProvider;
-use Igne\ScrambleExtensions\Tests\Fixtures\ArticleNotPublished;
-use Igne\ScrambleExtensions\Tests\Fixtures\ArticleNotPublishedResponse;
-use Igne\ScrambleExtensions\Tests\Fixtures\ArticlePublishedResponse;
-use Igne\ScrambleExtensions\Tests\Fixtures\JsonArticlePublished;
+use Igne\ApiDocs\ApiDocsServiceProvider;
+use Igne\ApiDocs\Tests\Fixtures\ArticleNotPublished;
+use Igne\ApiDocs\Tests\Fixtures\ArticleNotPublishedResponse;
+use Igne\ApiDocs\Tests\Fixtures\ArticlePublishedResponse;
+use Igne\ApiDocs\Tests\Fixtures\JsonArticlePublished;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Orchestra\Testbench\TestCase as Testbench;
 
@@ -32,7 +32,7 @@ abstract class TestCase extends Testbench
 
     protected function getPackageProviders($app): array
     {
-        return [ScrambleServiceProvider::class, ScrambleExtensionsServiceProvider::class];
+        return [ScrambleServiceProvider::class, ApiDocsServiceProvider::class];
     }
 
     protected function defineEnvironment($app): void

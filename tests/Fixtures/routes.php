@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use Igne\ScrambleExtensions\Tests\Fixtures\ArticleController;
-use Igne\ScrambleExtensions\Tests\Fixtures\MembersOnly;
-use Igne\ScrambleExtensions\Tests\Fixtures\RejectDrafts;
+use Igne\ApiDocs\Tests\Fixtures\ArticleController;
+use Igne\ApiDocs\Tests\Fixtures\MembersOnly;
+use Igne\ApiDocs\Tests\Fixtures\RejectDrafts;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('api/fixtures')->group(function (): void {

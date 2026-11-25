@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions;
+namespace Igne\ApiDocs;
 
 use Dedoc\Scramble\Infer\Configuration\DefinitionMatcher;
 use Illuminate\Routing\Route;

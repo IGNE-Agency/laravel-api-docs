@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions;
+namespace Igne\ApiDocs;
 
 use Dedoc\Scramble\Configuration\OperationTransformers;
 use Dedoc\Scramble\Scramble;
-use Igne\ScrambleExtensions\Errors\AppAnswers;
-use Igne\ScrambleExtensions\Errors\ErrorSchemas;
-use Igne\ScrambleExtensions\Errors\ErrorSet;
-use Igne\ScrambleExtensions\Errors\RenderedErrors;
-use Igne\ScrambleExtensions\Errors\SchemaFromSample;
+use Igne\ApiDocs\Errors\AppAnswers;
+use Igne\ApiDocs\Errors\ErrorSchemas;
+use Igne\ApiDocs\Errors\ErrorSet;
+use Igne\ApiDocs\Errors\RenderedErrors;
+use Igne\ApiDocs\Errors\SchemaFromSample;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -27,45 +27,45 @@ use Illuminate\Support\ServiceProvider;
  *   provider has booted, after the transformers of the application and of every other package, and
  *   each writes a part of its own.
  */
-final class ScrambleExtensionsServiceProvider extends ServiceProvider
+final class ApiDocsServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/scramble-extensions.php', 'scramble-extensions');
+        $this->mergeConfigFrom(__DIR__.'/../config/api-docs.php', 'api-docs');
 
         $this->app->singleton(AppAnswers::class);
-        $this->app->singleton(ErrorSchemas::class, static fn (): ErrorSchemas => new ErrorSchemas((string) config('scramble-extensions.errors.suffix', 'Error')));
-        $this->app->bind(SchemaFromSample::class, static fn (): SchemaFromSample => new SchemaFromSample(array_values(array_filter((array) config('scramble-extensions.errors.free_text', []), is_string(...)))));
+        $this->app->singleton(ErrorSchemas::class, static fn (): ErrorSchemas => new ErrorSchemas((string) config('api-docs.errors.suffix', 'Error')));
+        $this->app->bind(SchemaFromSample::class, static fn (): SchemaFromSample => new SchemaFromSample(array_values(array_filter((array) config('api-docs.errors.free_text', []), is_string(...)))));
     }
 
     public function boot(): void
     {
-        $this->publishes([__DIR__.'/../config/scramble-extensions.php' => $this->app->configPath('scramble-extensions.php')], 'scramble-extensions-config');
+        $this->publishes([__DIR__.'/../config/api-docs.php' => $this->app->configPath('api-docs.php')], 'api-docs-config');
 
-        if (config('scramble-extensions.called_methods') === true) {
+        if (config('api-docs.called_methods') === true) {
             Scramble::registerExtensions([ExceptionsOfCalledMethods::class]);
         }
 
-        if (config('scramble-extensions.bound_responses') === true) {
+        if (config('api-docs.bound_responses') === true) {
             Scramble::registerExtensions([BoundResponses::class, ContainerCalls::class]);
         }
 
-        if (config('scramble-extensions.packages') === true) {
+        if (config('api-docs.packages') === true) {
             Scramble::infer()->configure()->buildDefinitionsUsingAstFor([new RoutedPackages($this->app->make('router'))]);
         }
 
-        if (config('scramble-extensions.middleware') === true) {
+        if (config('api-docs.middleware') === true) {
             Scramble::configure()->withOperationTransformers(
                 static fn (OperationTransformers $transformers): OperationTransformers => $transformers->prepend(ExceptionsOfMiddleware::class),
             );
         }
 
-        if (config('scramble-extensions.pagination') === true) {
+        if (config('api-docs.pagination') === true) {
             Scramble::configure()->withOperationTransformers([PaginatedResponses::class]);
         }
 
-        $errors = config('scramble-extensions.errors.enabled') === true;
-        $security = config('scramble-extensions.security') === true;
+        $errors = config('api-docs.errors.enabled') === true;
+        $security = config('api-docs.security') === true;
 
         if ($errors) {
             Scramble::configure()->withRuleTransformers([RenderedErrors::class]);
@@ -74,7 +74,7 @@ final class ScrambleExtensionsServiceProvider extends ServiceProvider
         $this->app->booted(static function () use ($errors, $security): void {
             Scramble::configure()
                 ->withOperationTransformers(array_values(array_filter([
-                    config('scramble-extensions.csrf') === true ? CsrfHeader::class : null,
+                    config('api-docs.csrf') === true ? CsrfHeader::class : null,
                     $security ? Security::class : null,
                     $errors ? RenderedErrors::class : null,
                 ])))

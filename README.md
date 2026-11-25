@@ -1,4 +1,4 @@
-# igne-agency/laravel-scramble-extensions
+# igne-agency/laravel-api-docs
 
 The documentation rules of an IGNE API, as extensions for [Scramble](https://scramble.dedoc.co). Nobody writes documentation: the rules read the code of the application and of every package that registers routes, and produce the document.
 
@@ -13,13 +13,13 @@ Each rule applies to every route of the document, whoever registered it. A packa
 ## Install
 
 ```bash
-composer require igne-agency/laravel-scramble-extensions
+composer require igne-agency/laravel-api-docs
 ```
 
 Every rule is on by default. To turn one off or to name things differently, publish the config:
 
 ```bash
-php artisan vendor:publish --tag=scramble-extensions-config
+php artisan vendor:publish --tag=api-docs-config
 ```
 
 ## The rules
@@ -62,7 +62,7 @@ public static function throwsFor(Route $route): array
 
 ## Testing
 
-`Igne\ScrambleExtensions\Testing\AssertsDocumentedResponses` asserts that a real response is what the document says the operation answers: its status, its content type and a body that fits the documented schema.
+`Igne\ApiDocs\Testing\AssertsDocumentedResponses` asserts that a real response is what the document says the operation answers: its status, its content type and a body that fits the documented schema.
 
 ```php
 $this->assertDocumented($this->getJson('/api/articles/1'), 'get', '/articles/{article}');

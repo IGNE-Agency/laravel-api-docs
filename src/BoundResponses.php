@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions;
+namespace Igne\ApiDocs;
 
 use Closure;
 use Dedoc\Scramble\Extensions\TypeToSchemaExtension;

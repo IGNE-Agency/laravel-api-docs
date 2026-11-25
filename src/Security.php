@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions;
+namespace Igne\ApiDocs;
 
 use Dedoc\Scramble\Contracts\DocumentTransformer;
 use Dedoc\Scramble\Contracts\OperationTransformer;
@@ -62,7 +62,7 @@ final class Security implements DocumentTransformer, OperationTransformer
             }
 
             if (isset($used[self::SESSION])) {
-                $cookie = config('scramble-extensions.session_cookie') ?? config('session.cookie');
+                $cookie = config('api-docs.session_cookie') ?? config('session.cookie');
                 $target->components->addSecurityScheme(self::SESSION, SecurityScheme::apiKey('cookie', (string) $cookie)->setDescription('The session cookie of a client that logged in on a cookie session.'));
             }
         }

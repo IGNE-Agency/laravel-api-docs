@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ScrambleExtensions\Testing;
+namespace Igne\ApiDocs\Testing;
 
 use Dedoc\Scramble\Generator;
 use Dedoc\Scramble\Scramble;

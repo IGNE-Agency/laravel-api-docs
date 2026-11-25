@@ -79,7 +79,7 @@ Nothing in `src/` references an error package or a documentation tool. An archit
 ```php
 arch('the package uses no error package and no documentation tool')
     ->expect('Vendor\Package')
-    ->not->toUse(['Dedoc\Scramble', 'Igne\ProblemDetails', 'Igne\ScrambleExtensions']);
+    ->not->toUse(['Dedoc\Scramble', 'Igne\ErrorContract', 'Igne\ApiDocs']);
 ```
 
 ## 7. A group middleware says where it applies

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Igne\ScrambleExtensions\Tests\Fixtures\CodedErrorsServiceProvider;
+use Igne\ApiDocs\Tests\Fixtures\CodedErrorsServiceProvider;
 
 // The application answers its errors in a format this package has never heard of. Nothing describes it: the
 // package asks the application, and documents what comes back.
