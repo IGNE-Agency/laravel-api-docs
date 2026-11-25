@@ -25,6 +25,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use ReflectionNamedType;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
+use Throwable;
 
 /**
  * Documents the error responses of every operation as the application really answers them.
@@ -60,6 +61,7 @@ final class RenderedErrors implements OperationTransformer
 
         $this->schemas->anyPath ??= $routeInfo->route->uri();
 
+        // Per status: the content type, the headers and the names of the error schemas answered with it.
         $answered = [];
         foreach ($routeInfo->getActionType()?->exceptions ?? [] as $type) {
             if (! $type instanceof ObjectType) {
@@ -67,37 +69,35 @@ final class RenderedErrors implements OperationTransformer
             }
 
             $isValidation = is_a($type->name, ValidationException::class, true);
-            $ofRequest = $isValidation && $this->namedInputs($rules) !== [];
-
-            // Several samples of one error (a validation error has two) are answers to merge into one schema.
-            $status = null;
-            $schemas = [];
+            $requestRules = $isValidation && $this->hasNamedInput($rules) ? $rules : null;
             $samples = match (true) {
-                $ofRequest => $this->validationSamples->ofRequest($rules),
+                $requestRules !== null => $this->validationSamples->ofRequest($requestRules),
                 $isValidation => $this->validationSamples->ofAnyRequest(),
                 default => $this->samples->of($type),
             };
 
-            foreach ($samples as $exception) {
-                $answer = $this->answers->to($exception, $routeInfo->method, $routeInfo->route->uri());
+            $answers = $this->errorAnswers($samples, $routeInfo);
 
-                if ($answer === null || $answer['status'] < HttpResponse::HTTP_BAD_REQUEST) {
-                    continue;
-                }
+            if ($answers === []) {
+                continue;
+            }
 
-                $status ??= $answer['status'];
+            // Several samples of one error (a validation error has two) are answers to merge into one schema.
+            $status = $answers[0]['status'];
+            $schemas = [];
+            foreach ($answers as $answer) {
                 $schema = $this->schemaFromSample->of($answer['body']);
-                $schemas[] = $isValidation ? ValidationSchema::perInput($schema, $ofRequest ? $rules : null) : $schema;
+                $schemas[] = $isValidation ? ValidationSchema::perInput($schema, $requestRules) : $schema;
 
                 $answered[$status]['contentType'] = $answer['contentType'];
                 $answered[$status]['headers'] = [...($answered[$status]['headers'] ?? []), ...$answer['headers']];
             }
 
-            if ($status === null) {
-                continue;
-            }
+            $schema = SchemaFromSample::merge($schemas);
+            $name = $requestRules === null
+                ? $this->schemas->add($schema, $type->name, $status)
+                : $this->schemas->addValidationOf($this->requestName($operation, $routeInfo), $schema);
 
-            $name = $this->schemas->add(SchemaFromSample::merge($schemas), $type->name, $status, $ofRequest ? $this->requestName($operation, $routeInfo) : null);
             $answered[$status]['names'][$name] = $name;
         }
 
@@ -110,32 +110,65 @@ final class RenderedErrors implements OperationTransformer
         // What Scramble documented for a status the application was asked about is replaced; any other response stays.
         $operation->responses = array_values(array_filter(
             $operation->responses ?? [],
-            static fn (Response|Reference $response): bool => ! $response instanceof Response || ! isset($answered[(int) $response->code]),
+            static fn (Response|Reference $response): bool => ! $response instanceof Response
+                || ! isset($answered[(int) $response->code]),
         ));
 
         foreach ($answered as $status => $error) {
-            $response = Response::make($status)
-                ->setDescription($status === 419 ? 'Page Expired' : (HttpResponse::$statusTexts[$status] ?? 'Error'))
-                ->setContent($error['contentType'], Schema::fromType(new RawSchema($this->schemas->response(array_values($error['names'])))));
-
-            foreach ($error['headers'] as $header => $value) {
-                $response->addHeader($header, new Header(
-                    description: $header === 'Retry-After' ? 'The number of seconds to wait before sending the request again.' : null,
-                    schema: Schema::fromType(is_numeric($value) ? new IntegerType : new StringType),
-                ));
-            }
-
-            $operation->addResponse($response);
+            $names = array_values($error['names']);
+            $operation->addResponse($this->errorResponse($status, $error['contentType'], $error['headers'], $names));
         }
     }
 
     /**
-     * @param  array<string, list<array{0: string, 1: list<mixed>}>>  $rules
-     * @return list<string>
+     * The answers of the application to the samples of one error, those that are an error.
+     *
+     * @param  list<Throwable>  $samples
+     * @return list<array{status: int, contentType: string, headers: array<string, string>, body: array<string, mixed>}>
      */
-    private function namedInputs(array $rules): array
+    private function errorAnswers(array $samples, RouteInfo $routeInfo): array
     {
-        return array_values(array_filter(array_map(strval(...), array_keys($rules)), static fn (string $input): bool => ! str_contains($input, '*')));
+        $answers = [];
+
+        foreach ($samples as $exception) {
+            $answer = $this->answers->to($exception, $routeInfo->method, $routeInfo->route->uri());
+
+            if ($answer !== null && $answer['status'] >= HttpResponse::HTTP_BAD_REQUEST) {
+                $answers[] = $answer;
+            }
+        }
+
+        return $answers;
+    }
+
+    /**
+     * @param  array<string, string>  $headers
+     * @param  list<string>  $names
+     */
+    private function errorResponse(int $status, string $contentType, array $headers, array $names): Response
+    {
+        $response = Response::make($status)
+            ->setDescription(ErrorSchemas::reasonPhrase($status) ?? 'Error')
+            ->setContent($contentType, RawSchema::asSchema($this->schemas->response($names)));
+
+        foreach ($headers as $header => $value) {
+            $response->addHeader($header, new Header(
+                description: $header === 'Retry-After' ? 'The number of seconds to wait before sending the request again.' : null,
+                schema: Schema::fromType(is_numeric($value) ? new IntegerType : new StringType),
+            ));
+        }
+
+        return $response;
+    }
+
+    /**
+     * Whether the rules name an input of the request, not only items of a list (`tags.*`).
+     *
+     * @param  array<string, list<array{0: string, 1: list<mixed>}>>  $rules
+     */
+    private function hasNamedInput(array $rules): bool
+    {
+        return array_any(array_keys($rules), static fn (int|string $input): bool => ! str_contains((string) $input, '*'));
     }
 
     /**

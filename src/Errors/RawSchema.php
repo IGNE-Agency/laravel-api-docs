@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Igne\ApiDocs\Errors;
 
+use Dedoc\Scramble\Support\Generator\Schema;
 use Dedoc\Scramble\Support\Generator\Types\Type;
 
 /**
@@ -17,6 +18,14 @@ final class RawSchema extends Type
     public function __construct(private readonly array $schema)
     {
         parent::__construct('object');
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     */
+    public static function asSchema(array $schema): Schema
+    {
+        return Schema::fromType(new self($schema));
     }
 
     public function serializeAs31(): mixed

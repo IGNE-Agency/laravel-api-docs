@@ -14,9 +14,7 @@ use Igne\ApiDocs\Csrf\CsrfProtection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Routing\Route;
-use Illuminate\Routing\Router;
 use Illuminate\Session\TokenMismatchException;
-use Illuminate\Support\Str;
 use WeakMap;
 
 /**
@@ -49,7 +47,7 @@ final class ExceptionsOfMiddleware implements OperationTransformer
 
     public function __construct(
         private readonly Infer $infer,
-        private readonly Router $router,
+        private readonly RouteMiddleware $middleware,
         private readonly CsrfProtection $csrf,
     ) {}
 
@@ -79,25 +77,15 @@ final class ExceptionsOfMiddleware implements OperationTransformer
     {
         $thrown = [];
 
-        foreach ($this->router->resolveMiddleware($route->gatherMiddleware(), $route->excludedMiddleware()) as $middleware) {
-            if (! is_string($middleware)) {
-                continue;
-            }
-
-            $middlewareClass = Str::before($middleware, ':');
-
-            foreach ($this->thrownByMiddleware($middlewareClass, $route, $method) as $exception) {
-                if ($exception instanceof Type) {
-                    $thrown[] = $exception;
-                }
-            }
+        foreach ($this->middleware->classesOf($route) as $middlewareClass) {
+            $thrown = [...$thrown, ...$this->thrownByMiddleware($middlewareClass, $route, $method)];
         }
 
         return $thrown;
     }
 
     /**
-     * @return array<int, mixed>
+     * @return list<Type>
      */
     private function thrownByMiddleware(string $middlewareClass, Route $route, string $method): array
     {
@@ -121,6 +109,6 @@ final class ExceptionsOfMiddleware implements OperationTransformer
             return [];
         }
 
-        return $this->infer->analyzeClass($middlewareClass)->getMethodDefinition('handle')?->type->exceptions ?? [];
+        return array_values($this->infer->analyzeClass($middlewareClass)->getMethodDefinition('handle')?->type->exceptions ?? []);
     }
 }

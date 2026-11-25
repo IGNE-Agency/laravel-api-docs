@@ -43,8 +43,16 @@ final class ApiDocsServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/api-docs.php', 'api-docs');
 
         $this->app->singleton(AppAnswers::class);
-        $this->app->singleton(ErrorSchemas::class, static fn (): ErrorSchemas => new ErrorSchemas((string) config('api-docs.errors.suffix', 'Error')));
-        $this->app->bind(SchemaFromSample::class, static fn (): SchemaFromSample => new SchemaFromSample(array_values(array_filter((array) config('api-docs.errors.free_text', []), is_string(...)))));
+        $this->app->singleton(
+            ErrorSchemas::class,
+            static fn (): ErrorSchemas => new ErrorSchemas((string) config('api-docs.errors.suffix', 'Error')),
+        );
+        $this->app->bind(
+            SchemaFromSample::class,
+            static fn (): SchemaFromSample => new SchemaFromSample(
+                array_values(array_filter((array) config('api-docs.errors.free_text', []), is_string(...))),
+            ),
+        );
     }
 
     public function boot(): void

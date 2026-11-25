@@ -64,24 +64,37 @@ final class ErrorSchemas
     /**
      * @param  array<string, mixed>  $schema
      * @param  class-string|null  $exceptionClass
-     * @param  string|null  $requestName  the request the schema belongs to, when it is the validation error of one request
      */
-    public function add(array $schema, ?string $exceptionClass, int $status, ?string $requestName = null): string
+    public function add(array $schema, ?string $exceptionClass, int $status): string
     {
-        $name = $requestName !== null ? $requestName.'Validation'.$this->suffix : $this->nameOf($schema, $status);
+        $name = $this->nameOf($schema, $status);
+        $this->put($name, $schema);
 
-        $this->schemas[$name] = isset($this->schemas[$name]) ? SchemaFromSample::merge([$this->schemas[$name], $schema]) : $schema;
+        // Only an answer that is told apart from the others is the error of one class; one named after its
+        // status stands for every exception of that status.
+        $summary = count(self::fixedValues($schema)) === 1 ? self::summaryOf($exceptionClass) : null;
 
-        if ($requestName !== null) {
-            $this->ofOneRequest[$name] = true;
-            $this->descriptions[$name] = "A validation error of {$requestName}: its inputs and the rules each can fail.";
-        } elseif (count(self::fixedValues($schema)) === 1 && ($summary = self::summaryOf($exceptionClass)) !== null) {
-            // Only an answer that is told apart from the others is the error of one class; one named after its
-            // status stands for every exception of that status.
+        if ($summary !== null) {
             $this->descriptions[$name] = $summary;
         } else {
-            $this->descriptions[$name] ??= self::DESCRIPTIONS[$status] ?? self::reasonPhrase($status).'.';
+            $this->descriptions[$name] ??= self::DESCRIPTIONS[$status] ?? (self::reasonPhrase($status) ?? 'Error '.$status).'.';
         }
+
+        return $name;
+    }
+
+    /**
+     * The validation error of one request, named after the request.
+     *
+     * @param  array<string, mixed>  $schema
+     */
+    public function addValidationOf(string $requestName, array $schema): string
+    {
+        $name = $requestName.'Validation'.$this->suffix;
+        $this->put($name, $schema);
+
+        $this->ofOneRequest[$name] = true;
+        $this->descriptions[$name] = "A validation error of {$requestName}: its inputs and the rules each can fail.";
 
         return $name;
     }
@@ -154,13 +167,29 @@ final class ErrorSchemas
     }
 
     /**
+     * The reason phrase of a status, null for a status without one.
+     */
+    public static function reasonPhrase(int $status): ?string
+    {
+        return $status === 419 ? 'Page Expired' : (Response::$statusTexts[$status] ?? null);
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     */
+    private function put(string $name, array $schema): void
+    {
+        $this->schemas[$name] = isset($this->schemas[$name]) ? SchemaFromSample::merge([$this->schemas[$name], $schema]) : $schema;
+    }
+
+    /**
      * @param  array<string, mixed>  $schema
      */
     private function nameOf(array $schema, int $status): string
     {
         $fixed = self::fixedValues($schema);
-
-        $name = Str::studly(count($fixed) === 1 ? (string) reset($fixed) : Str::slug(self::reasonPhrase($status), '_'));
+        $value = count($fixed) === 1 ? reset($fixed) : Str::slug(self::reasonPhrase($status) ?? 'Error '.$status, '_');
+        $name = Str::studly($value);
 
         // `internal_server_error` is InternalServerError, not InternalServerErrorError.
         return str_ends_with($name, $this->suffix) ? $name : $name.$this->suffix;
@@ -219,11 +248,6 @@ final class ErrorSchemas
     private static function reference(string $name): array
     {
         return ['$ref' => '#/components/schemas/'.$name];
-    }
-
-    private static function reasonPhrase(int $status): string
-    {
-        return $status === 419 ? 'Page Expired' : (Response::$statusTexts[$status] ?? 'Error '.$status);
     }
 
     /**

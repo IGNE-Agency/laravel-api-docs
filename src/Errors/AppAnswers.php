@@ -65,8 +65,10 @@ final class AppAnswers
 
         $headers = [];
         foreach ($exception instanceof HttpExceptionInterface ? array_keys($exception->getHeaders()) : [] as $header) {
-            if ($response->headers->has((string) $header)) {
-                $headers[(string) $header] = (string) $response->headers->get((string) $header);
+            $header = (string) $header;
+
+            if ($response->headers->has($header)) {
+                $headers[$header] = (string) $response->headers->get($header);
             }
         }
 
@@ -82,7 +84,10 @@ final class AppAnswers
     {
         $path = '/'.ltrim((string) preg_replace('/\{[^}]+\}/', '1', $uri), '/');
 
-        return Request::create($path, strtoupper($method), server: ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json']);
+        return Request::create($path, strtoupper($method), server: [
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ]);
     }
 
     /**

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Igne\ApiDocs\Csrf;
 
+use Igne\ApiDocs\Middleware\RouteMiddleware;
 use Illuminate\Routing\Route;
-use Illuminate\Routing\Router;
 use Illuminate\Support\Str;
 
 /**
@@ -23,9 +23,7 @@ final readonly class CsrfProtection
         'Illuminate\Foundation\Http\Middleware\VerifyCsrfToken',
     ];
 
-    private const string SANCTUM_STATEFUL = 'Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful';
-
-    public function __construct(private Router $router) {}
+    public function __construct(private RouteMiddleware $middleware) {}
 
     public function protects(Route $route, string $method): bool
     {
@@ -43,7 +41,7 @@ final readonly class CsrfProtection
      */
     public static function runsTheCheck(string $middlewareClass): bool
     {
-        return self::isCsrfMiddleware($middlewareClass) || is_a($middlewareClass, self::SANCTUM_STATEFUL, true);
+        return self::isCsrfMiddleware($middlewareClass) || is_a($middlewareClass, RouteMiddleware::SANCTUM_STATEFUL, true);
     }
 
     /**
@@ -53,18 +51,12 @@ final readonly class CsrfProtection
      */
     private function middlewareOf(Route $route): ?string
     {
-        foreach ($this->router->resolveMiddleware($route->gatherMiddleware(), $route->excludedMiddleware()) as $middleware) {
-            if (! is_string($middleware)) {
-                continue;
-            }
-
-            $middlewareClass = Str::before($middleware, ':');
-
+        foreach ($this->middleware->classesOf($route) as $middlewareClass) {
             if (self::isCsrfMiddleware($middlewareClass)) {
                 return $middlewareClass;
             }
 
-            if (is_a($middlewareClass, self::SANCTUM_STATEFUL, true)) {
+            if (is_a($middlewareClass, RouteMiddleware::SANCTUM_STATEFUL, true)) {
                 $configured = config('sanctum.middleware.validate_csrf_token') ?? config('sanctum.middleware.verify_csrf_token');
 
                 return is_string($configured) && self::isCsrfMiddleware($configured) ? $configured : null;

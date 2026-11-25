@@ -7,7 +7,6 @@ namespace Igne\ApiDocs\Packages;
 use Dedoc\Scramble\Infer\Configuration\DefinitionMatcher;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
-use ReflectionClass;
 
 /**
  * Lets Scramble read a package that registers routes like the application itself.
@@ -31,7 +30,7 @@ final class RoutedPackages implements DefinitionMatcher
 
     public function matches(string $class): bool
     {
-        $package = self::packageOf($class);
+        $package = Package::of($class);
 
         return $package !== null && isset($this->packages()[$package]);
     }
@@ -53,24 +52,11 @@ final class RoutedPackages implements DefinitionMatcher
             $controller = $route instanceof Route ? $route->getAction('controller') : null;
             $class = is_string($controller) ? explode('@', $controller)[0] : null;
 
-            if ($class === null || ! class_exists($class) || ($package = self::packageOf($class)) === null) {
-                continue;
-            }
-
-            $path = (new ReflectionClass($class))->getFileName();
-
-            if ($path !== false && str_contains($path, DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR)) {
+            if ($class !== null && Package::isInVendor($class) === true && ($package = Package::of($class)) !== null) {
                 $packages[$package] = true;
             }
         }
 
         return $this->packages = $packages;
-    }
-
-    private static function packageOf(string $class): ?string
-    {
-        $segments = explode('\\', ltrim($class, '\\'));
-
-        return count($segments) > 2 ? $segments[0].'\\'.$segments[1] : null;
     }
 }

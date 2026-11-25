@@ -11,10 +11,10 @@ use Dedoc\Scramble\Infer\Services\ShallowTypeResolver;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Type\ObjectType;
 use Dedoc\Scramble\Support\Type\TemplateType;
+use Igne\ApiDocs\Packages\Package;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
-use ReflectionClass;
 
 /**
  * Lets an exception be thrown anywhere: Scramble only sees what a method throws itself, so for
@@ -69,9 +69,11 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
             return $node->name instanceof Expr ? '__invoke' : null;
         }
 
-        return ($node instanceof Expr\MethodCall || $node instanceof Expr\NullsafeMethodCall || $node instanceof Expr\StaticCall) && $node->name instanceof Identifier
-            ? $node->name->name
-            : null;
+        $isMethodCall = $node instanceof Expr\MethodCall
+            || $node instanceof Expr\NullsafeMethodCall
+            || $node instanceof Expr\StaticCall;
+
+        return $isMethodCall && $node->name instanceof Identifier ? $node->name->name : null;
     }
 
     /**
@@ -80,12 +82,17 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
      */
     private function calledClass(Expr $node, Scope $scope): ?string
     {
-        if ($node instanceof Expr\MethodCall || $node instanceof Expr\NullsafeMethodCall || ($node instanceof Expr\FuncCall && $node->name instanceof Expr)) {
-            $called = $node instanceof Expr\FuncCall ? $node->name : $node->var;
-            $object = (new ShallowTypeResolver(app(LazyShallowReflectionIndex::class)))->resolve($scope, $scope->getType($called));
-            $object = $object instanceof TemplateType ? $object->is : $object;
+        $object = match (true) {
+            $node instanceof Expr\MethodCall, $node instanceof Expr\NullsafeMethodCall => $node->var,
+            $node instanceof Expr\FuncCall && $node->name instanceof Expr => $node->name,
+            default => null,
+        };
 
-            return $object instanceof ObjectType ? $object->name : null;
+        if ($object !== null) {
+            $type = (new ShallowTypeResolver(app(LazyShallowReflectionIndex::class)))->resolve($scope, $scope->getType($object));
+            $type = $type instanceof TemplateType ? $type->is : $type;
+
+            return $type instanceof ObjectType ? $type->name : null;
         }
 
         if ($node instanceof Expr\StaticCall && $node->class instanceof Name) {
@@ -105,30 +112,10 @@ final class ExceptionsOfCalledMethods implements ExpressionExceptionExtension
      */
     private function isReadable(string $class, ?string $caller): bool
     {
-        if (! class_exists($class)) {
-            return false;
-        }
-
-        $path = (new ReflectionClass($class))->getFileName();
-
-        if ($path === false) {
-            return false;
-        }
-
-        if (! str_contains($path, DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR)) {
-            return true;
-        }
-
-        return $caller !== null && self::package($caller) !== null && self::package($caller) === self::package($class);
-    }
-
-    /**
-     * The vendor and package part of a class name (`Igne\Auth`), null for a class without one.
-     */
-    private static function package(string $class): ?string
-    {
-        $segments = explode('\\', ltrim($class, '\\'));
-
-        return count($segments) > 2 ? $segments[0].'\\'.$segments[1] : null;
+        return match (Package::isInVendor($class)) {
+            null => false,
+            false => true,
+            true => $caller !== null && Package::of($class) !== null && Package::of($class) === Package::of($caller),
+        };
     }
 }

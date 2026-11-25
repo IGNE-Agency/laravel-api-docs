@@ -32,7 +32,10 @@ final readonly class SchemaFromSample
             is_float($value) => ['type' => 'number'],
             is_string($value) => $this->string($value, $member),
             $value === [] => ['type' => 'array'],
-            is_array($value) && array_is_list($value) => ['type' => 'array', 'items' => self::merge(array_map(fn (mixed $item): array => $this->of($item), $value))],
+            is_array($value) && array_is_list($value) => [
+                'type' => 'array',
+                'items' => self::merge(array_map(fn (mixed $item): array => $this->of($item), $value)),
+            ],
             is_array($value) => $this->object($value),
             default => ['type' => 'null'],
         };
@@ -60,47 +63,71 @@ final readonly class SchemaFromSample
 
         $types = array_values(array_unique(array_map(static fn (array $schema): mixed => $schema['type'] ?? null, $schemas), SORT_REGULAR));
 
-        if ($types === ['object']) {
-            $properties = [];
-            foreach ($schemas as $schema) {
-                foreach ($schema['properties'] ?? [] as $name => $property) {
-                    $properties[$name][] = $property;
-                }
+        return match ($types) {
+            ['object'] => self::mergeObjects($schemas),
+            ['string'] => self::mergeStrings($schemas),
+            ['array'] => self::mergeArrays($schemas),
+            default => count($types) === 1 && is_string($types[0]) ? ['type' => $types[0]] : ['anyOf' => $schemas],
+        };
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $schemas
+     * @return array<string, mixed>
+     */
+    private static function mergeObjects(array $schemas): array
+    {
+        $properties = [];
+        foreach ($schemas as $schema) {
+            foreach ($schema['properties'] ?? [] as $name => $property) {
+                $properties[$name][] = $property;
+            }
+        }
+
+        $required = array_intersect(...array_map(static fn (array $schema): array => $schema['required'] ?? [], $schemas));
+        $others = array_filter(array_map(static fn (array $schema): ?array => $schema['additionalProperties'] ?? null, $schemas));
+
+        return array_filter([
+            'type' => 'object',
+            'properties' => array_map(self::merge(...), $properties),
+            'required' => array_values($required),
+            'additionalProperties' => $others === [] ? [] : self::merge(array_values($others)),
+        ], static fn (mixed $member): bool => $member !== []);
+    }
+
+    /**
+     * Fixed values become one enum; when any of the strings is free, the result is a free string, with
+     * the format they all share.
+     *
+     * @param  list<array<string, mixed>>  $schemas
+     * @return array<string, mixed>
+     */
+    private static function mergeStrings(array $schemas): array
+    {
+        $values = [];
+        foreach ($schemas as $schema) {
+            if (! isset($schema['const']) && ! isset($schema['enum'])) {
+                $formats = array_unique(array_map(static fn (array $schema): ?string => $schema['format'] ?? null, $schemas));
+                $format = count($formats) === 1 ? reset($formats) : null;
+
+                return $format === null ? ['type' => 'string'] : ['type' => 'string', 'format' => $format];
             }
 
-            $required = array_values(array_intersect(...array_map(static fn (array $schema): array => $schema['required'] ?? [], $schemas)));
-            $others = array_values(array_filter(array_map(static fn (array $schema): ?array => $schema['additionalProperties'] ?? null, $schemas)));
-
-            return array_filter([
-                'type' => 'object',
-                'properties' => array_map(self::merge(...), $properties),
-                'required' => $required,
-                'additionalProperties' => $others === [] ? [] : self::merge($others),
-            ], static fn (mixed $member): bool => $member !== []);
+            $values = [...$values, ...($schema['enum'] ?? [$schema['const']])];
         }
 
-        if ($types === ['string']) {
-            $values = [];
-            foreach ($schemas as $schema) {
-                if (! isset($schema['const']) && ! isset($schema['enum'])) {
-                    $formats = array_unique(array_map(static fn (array $schema): ?string => $schema['format'] ?? null, $schemas));
+        return ['type' => 'string', 'enum' => array_values(array_unique($values))];
+    }
 
-                    return count($formats) === 1 && $formats[0] !== null ? ['type' => 'string', 'format' => $formats[0]] : ['type' => 'string'];
-                }
+    /**
+     * @param  list<array<string, mixed>>  $schemas
+     * @return array<string, mixed>
+     */
+    private static function mergeArrays(array $schemas): array
+    {
+        $items = array_filter(array_map(static fn (array $schema): ?array => $schema['items'] ?? null, $schemas));
 
-                $values = [...$values, ...($schema['enum'] ?? [$schema['const']])];
-            }
-
-            return ['type' => 'string', 'enum' => array_values(array_unique($values))];
-        }
-
-        if ($types === ['array']) {
-            $items = array_values(array_filter(array_map(static fn (array $schema): ?array => $schema['items'] ?? null, $schemas)));
-
-            return $items === [] ? ['type' => 'array'] : ['type' => 'array', 'items' => self::merge($items)];
-        }
-
-        return count($types) === 1 && is_string($types[0]) ? ['type' => $types[0]] : ['anyOf' => $schemas];
+        return $items === [] ? ['type' => 'array'] : ['type' => 'array', 'items' => self::merge(array_values($items))];
     }
 
     /**

@@ -13,8 +13,8 @@ use Dedoc\Scramble\Support\Generator\SecurityRequirement;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Dedoc\Scramble\Support\RouteInfo;
 use Igne\ApiDocs\Csrf\CsrfHeader;
+use Igne\ApiDocs\Middleware\RouteMiddleware;
 use Illuminate\Routing\Route;
-use Illuminate\Routing\Router;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Str;
 
@@ -36,8 +36,6 @@ final class SecuritySchemes implements DocumentTransformer, OperationTransformer
 
     public const string SESSION = 'session';
 
-    private const string SANCTUM_STATEFUL = 'Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful';
-
     /**
      * The schemes the operations of the document use.
      *
@@ -45,7 +43,7 @@ final class SecuritySchemes implements DocumentTransformer, OperationTransformer
      */
     private static array $used = [];
 
-    public function __construct(private readonly Router $router) {}
+    public function __construct(private readonly RouteMiddleware $middleware) {}
 
     public function handle(OpenApi|Operation $target, OpenApiContext|RouteInfo $context): void
     {
@@ -59,12 +57,18 @@ final class SecuritySchemes implements DocumentTransformer, OperationTransformer
             [$used, self::$used] = [self::$used, []];
 
             if (isset($used[self::BEARER])) {
-                $target->components->addSecurityScheme(self::BEARER, SecurityScheme::http('bearer')->setDescription('An access token, sent as `Authorization: Bearer <token>`.'));
+                $target->components->addSecurityScheme(
+                    self::BEARER,
+                    SecurityScheme::http('bearer')->setDescription('An access token, sent as `Authorization: Bearer <token>`.'),
+                );
             }
 
             if (isset($used[self::SESSION])) {
-                $cookie = config('api-docs.session_cookie') ?? config('session.cookie');
-                $target->components->addSecurityScheme(self::SESSION, SecurityScheme::apiKey('cookie', (string) $cookie)->setDescription('The session cookie of a client that logged in on a cookie session.'));
+                $cookie = (string) (config('api-docs.session_cookie') ?? config('session.cookie'));
+                $target->components->addSecurityScheme(
+                    self::SESSION,
+                    SecurityScheme::apiKey('cookie', $cookie)->setDescription('The session cookie of a client that logged in on a cookie session.'),
+                );
             }
         }
     }
@@ -78,7 +82,10 @@ final class SecuritySchemes implements DocumentTransformer, OperationTransformer
         }
 
         // Each scheme is a way of its own to authenticate: one of them is enough.
-        $operation->security = array_map(static fn (string $scheme): SecurityRequirement => new SecurityRequirement([$scheme => []]), $schemes);
+        $operation->security = array_map(
+            static fn (string $scheme): SecurityRequirement => new SecurityRequirement([$scheme => []]),
+            $schemes,
+        );
 
         foreach ($schemes as $scheme) {
             self::$used[$scheme] = true;
@@ -90,19 +97,17 @@ final class SecuritySchemes implements DocumentTransformer, OperationTransformer
      */
     private function schemesOf(Route $route): array
     {
-        $guards = null;
-        foreach ($route->gatherMiddleware() as $middleware) {
-            if (is_string($middleware) && Str::is(['auth', 'auth:*'], $middleware)) {
-                $guards = [...($guards ?? []), ...array_filter(explode(',', Str::after($middleware, ':') === $middleware ? '' : Str::after($middleware, ':')))];
-            }
-        }
+        $guards = $this->guardsOf($route);
 
         if ($guards === null) {
             return [];
         }
 
-        $resolved = array_map(static fn (mixed $middleware): string => is_string($middleware) ? Str::before($middleware, ':') : '', $this->router->resolveMiddleware($route->gatherMiddleware(), $route->excludedMiddleware()));
-        $hasSession = collect($resolved)->contains(static fn (string $class): bool => $class !== '' && (is_a($class, StartSession::class, true) || is_a($class, self::SANCTUM_STATEFUL, true)));
+        $hasSession = array_any(
+            $this->middleware->classesOf($route),
+            static fn (string $class): bool => is_a($class, StartSession::class, true)
+                || is_a($class, RouteMiddleware::SANCTUM_STATEFUL, true),
+        );
 
         $schemes = [];
         foreach ($guards === [] ? [(string) config('auth.defaults.guard')] : $guards as $guard) {
@@ -122,6 +127,31 @@ final class SecuritySchemes implements DocumentTransformer, OperationTransformer
         }
 
         // The bearer token first, as the way every client can use.
-        return array_values(array_filter([isset($schemes[self::BEARER]) ? self::BEARER : null, isset($schemes[self::SESSION]) ? self::SESSION : null]));
+        return array_values(array_intersect([self::BEARER, self::SESSION], array_keys($schemes)));
+    }
+
+    /**
+     * The guards the `auth` middleware of a route names: an empty list for `auth` without guards,
+     * null for a route without `auth`.
+     *
+     * @return list<string>|null
+     */
+    private function guardsOf(Route $route): ?array
+    {
+        $guards = null;
+
+        foreach ($route->gatherMiddleware() as $middleware) {
+            if (! is_string($middleware) || ! Str::is(['auth', 'auth:*'], $middleware)) {
+                continue;
+            }
+
+            $guards ??= [];
+
+            if (str_contains($middleware, ':')) {
+                $guards = [...$guards, ...array_filter(explode(',', Str::after($middleware, ':')))];
+            }
+        }
+
+        return $guards;
     }
 }

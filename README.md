@@ -24,16 +24,18 @@ php artisan vendor:publish --tag=api-docs-config
 
 ## The rules
 
-| Config key | What it adds to the document |
-|---|---|
-| `called_methods` | The errors thrown by the methods an action calls, all the way down (controller, service, repository). The application's code is followed, and a package inside itself. |
-| `bound_responses` | The answer of a controller that answers through a response contract (`return app(LoginResponse::class)`, as Laravel Fortify does): the contract is followed to the class bound to it. A call to an action class (`$action($user)`) is followed too. |
-| `packages` | A package with a controller on a route is read like the application, so its Resources keep the types of the values they take from other classes of the package. |
-| `middleware` | The errors the middleware of a route throws: a throttle, a check of the application or of a package, the CSRF 419, the model-binding 404. Kept per route. |
-| `pagination` | Named schemas for a paginated list (`PaginationLinks`, `PaginationMeta`, `Paginated<Resource>`). |
-| `csrf` | The `X-XSRF-TOKEN` header on every operation whose CSRF token Laravel checks. |
-| `security` | How a client authenticates on a route behind `auth`: a bearer token, the session cookie, or either. |
-| `errors` | The error responses, as the application really answers them. |
+| Config key | Folder in `src/` | What it adds to the document |
+|---|---|---|
+| `called_methods` | `CalledMethods` | The errors thrown by the methods an action calls, all the way down (controller, service, repository). The application's code is followed, and a package inside itself. A call to an action class (`$action($user)`) is followed too. |
+| `bound_responses` | `Fortify` | The answer of a controller that answers through a response contract (`return app(LoginResponse::class)`, as Laravel Fortify does): the contract is followed to the class bound to it. |
+| `packages` | `Packages` | A package with a controller on a route is read like the application, so its Resources keep the types of the values they take from other classes of the package. |
+| `middleware` | `Middleware` | The errors the middleware of a route throws: a throttle, a check of the application or of a package, the CSRF 419, the model-binding 404. Kept per route. |
+| `pagination` | `Pagination` | Named schemas for a paginated list (`PaginationLinks`, `PaginationMeta`, `Paginated<Resource>`). |
+| `csrf` | `Csrf` | The `X-XSRF-TOKEN` header on every operation whose CSRF token Laravel checks. |
+| `security` | `Security` | How a client authenticates on a route behind `auth`: a bearer token, the session cookie, or either. |
+| `errors` | `Errors`, `Validation` | The error responses, as the application really answers them. `Validation` holds the part for the validation error of a request. |
+
+Each rule has a folder of its own, so the folder tells why a class is there. `Fortify` is named after the package it was written for; it reads any controller that answers through a contract of the container.
 
 ## Error responses: the application is asked
 

@@ -88,7 +88,7 @@ final readonly class ErrorSamples
      *
      * @return list<Throwable>
      */
-    public function ofAnyRequest(): array
+    public static function ofAnyRequest(): array
     {
         return [
             new NotFoundHttpException,
@@ -105,7 +105,8 @@ final readonly class ErrorSamples
      */
     private function ofLiteralStatus(ObjectType $type): ?HttpException
     {
-        $status = (new HttpExceptionToResponseExtension($this->infer, $this->openApiTransformer, $this->openApiTransformer->getComponents()))->toResponse($type)?->code;
+        $extension = new HttpExceptionToResponseExtension($this->infer, $this->openApiTransformer, $this->openApiTransformer->getComponents());
+        $status = $extension->toResponse($type)?->code;
 
         return is_int($status) ? new HttpException($status) : null;
     }

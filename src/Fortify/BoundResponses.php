@@ -59,12 +59,16 @@ final class BoundResponses extends TypeToSchemaExtension
      */
     public static function answerForJson(string $responsable): ?Type
     {
-        $answer = ReferenceTypeResolver::getInstance()->resolve(new GlobalScope, new MethodCallReferenceType(new ObjectType($responsable), 'toResponse', []));
+        $toResponse = new MethodCallReferenceType(new ObjectType($responsable), 'toResponse', []);
+        $answer = ReferenceTypeResolver::getInstance()->resolve(new GlobalScope, $toResponse);
 
         $forJson = array_values(array_filter(
             $answer instanceof Union ? $answer->types : [$answer],
-            static fn (Type $answer): bool => $answer instanceof ObjectType
-                && ($answer->isInstanceOf(JsonResponse::class) || $answer->isInstanceOf(HttpResponse::class) || $answer->isInstanceOf(JsonResource::class)),
+            static fn (Type $answer): bool => $answer instanceof ObjectType && (
+                $answer->isInstanceOf(JsonResponse::class)
+                || $answer->isInstanceOf(HttpResponse::class)
+                || $answer->isInstanceOf(JsonResource::class)
+            ),
         ));
 
         return count($forJson) === 1 ? $forJson[0] : null;

@@ -41,17 +41,16 @@ final readonly class ValidationSamples
             $failed = [];
 
             foreach ($rules as [$rule, $parameters]) {
-                $name = str_contains($rule, '\\') ? $rule : self::ruleName($rule);
+                $isObject = str_contains($rule, '\\');
+                $name = $isObject ? $rule : self::ruleName($rule);
 
-                if (isset($failed[$name])) {
+                // A rule without a message never fails by itself: `nullable`, `sometimes`, `bail`.
+                if (isset($failed[$name]) || (! $isObject && ! self::hasMessage($name))) {
                     continue;
                 }
 
-                // A rule without a message never fails by itself: `nullable`, `sometimes`, `bail`.
-                if (str_contains($rule, '\\') || self::hasMessage($name)) {
-                    $everyRuleFailed->fail($attribute, $name, array_values(array_map(strval(...), array_filter($parameters, is_scalar(...)))));
-                    $failed[$name] = true;
-                }
+                $everyRuleFailed->fail($attribute, $name, array_map(strval(...), array_values(array_filter($parameters, is_scalar(...)))));
+                $failed[$name] = true;
             }
 
             $messagesByHand->failByHand($attribute);
