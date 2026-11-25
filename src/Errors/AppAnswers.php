@@ -15,19 +15,17 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
 /**
- * Asks the application what it answers an error with: the exception goes to the application's own
- * exception handler, as a JSON request for the operation, and the real answer comes back. Whatever
- * gives the errors of the application their shape (Laravel itself, a package, the application's
- * `bootstrap/app.php`) is asked, and nothing has to describe that shape.
+ * Asks the application what it answers an error with: its own exception handler renders the
+ * exception for a JSON request of the operation. Debug is off meanwhile, so the answer is the one
+ * of production.
  *
- * The answer is the one of production, not of the machine the document is generated on: debug is
- * off while the handler renders.
+ * @phpstan-type Answer array{status: int, contentType: string, headers: array<string, string>, body: array<string, mixed>}
  */
 final class AppAnswers
 {
     /**
-     * What the global middleware of the application add to the log context of a request (a trace
-     * id, for example), learnt once by sending one request through them.
+     * What the global middleware add to the log context of a request (a trace id), learnt once by
+     * sending one request through them.
      *
      * @var array{data: array<string, mixed>, hidden: array<string, mixed>}|null
      */
@@ -39,7 +37,7 @@ final class AppAnswers
     ) {}
 
     /**
-     * @return array{status: int, contentType: string, headers: array<string, string>, body: array<string, mixed>}|null  null when the answer is no JSON object
+     * @return Answer|null  null when the answer is no JSON object
      */
     public function to(Throwable $exception, string $method, string $uri): ?array
     {
@@ -65,8 +63,10 @@ final class AppAnswers
 
         $headers = [];
         foreach ($exception instanceof HttpExceptionInterface ? array_keys($exception->getHeaders()) : [] as $header) {
-            if ($response->headers->has((string) $header)) {
-                $headers[(string) $header] = (string) $response->headers->get((string) $header);
+            $header = (string) $header;
+
+            if ($response->headers->has($header)) {
+                $headers[$header] = (string) $response->headers->get($header);
             }
         }
 
@@ -78,11 +78,28 @@ final class AppAnswers
         ];
     }
 
+    /**
+     * Without the answers that are no JSON object.
+     *
+     * @param  list<Throwable>  $exceptions
+     * @return list<Answer>
+     */
+    public function toEach(array $exceptions, string $method, string $uri): array
+    {
+        return array_values(array_filter(array_map(
+            fn (Throwable $exception): ?array => $this->to($exception, $method, $uri),
+            $exceptions,
+        )));
+    }
+
     private function request(string $method, string $uri): Request
     {
         $path = '/'.ltrim((string) preg_replace('/\{[^}]+\}/', '1', $uri), '/');
 
-        return Request::create($path, strtoupper($method), server: ['HTTP_ACCEPT' => 'application/json', 'CONTENT_TYPE' => 'application/json']);
+        return Request::create($path, strtoupper($method), server: [
+            'HTTP_ACCEPT' => 'application/json',
+            'CONTENT_TYPE' => 'application/json',
+        ]);
     }
 
     /**

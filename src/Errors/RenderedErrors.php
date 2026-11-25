@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Igne\ApiDocs\Errors;
 
-use Dedoc\Scramble\Contracts\AllRulesSchemasTransformer;
 use Dedoc\Scramble\Contracts\OperationTransformer;
-use Dedoc\Scramble\Infer;
 use Dedoc\Scramble\Support\Generator\Header;
 use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\Generator\Reference;
@@ -16,12 +14,11 @@ use Dedoc\Scramble\Support\Generator\Types\IntegerType;
 use Dedoc\Scramble\Support\Generator\Types\StringType;
 use Dedoc\Scramble\Support\Generator\TypeTransformer;
 use Dedoc\Scramble\Support\Generator\UniqueNameOptions;
-use Dedoc\Scramble\Support\OperationExtensions\RulesEvaluator\RuleType;
 use Dedoc\Scramble\Support\RouteInfo;
-use Dedoc\Scramble\Support\RuleTransforming\NormalizedRule;
-use Dedoc\Scramble\Support\RuleTransforming\RuleTransformerContext;
-use Dedoc\Scramble\Support\RuleTransforming\SchemaBag;
 use Dedoc\Scramble\Support\Type\ObjectType;
+use Igne\ApiDocs\Validation\RequestRules;
+use Igne\ApiDocs\Validation\ValidationSamples;
+use Igne\ApiDocs\Validation\ValidationSchema;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -29,103 +26,70 @@ use ReflectionNamedType;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
- * Documents the error responses of every operation as the application really answers them.
+ * Writes the error responses of an operation as the application really answers them: each exception
+ * the operation can throw is built, rendered by the application's exception handler, and the answer
+ * becomes the schema. Nothing describes an error format to this package.
  *
- * Nothing describes the shape of an error to this package. For each exception Scramble knows an
- * operation can throw (its action, the methods it calls, its middleware), a real exception is
- * built ({@see ErrorSamples}), the application's own exception handler answers it
- * ({@see AppAnswers}), and the answer is written down as a schema ({@see SchemaFromSample}). An
- * application that answers Laravel's `{ message }` is documented that way, one that answers RFC
- * 9457 Problem Details that way, with no setting to change.
+ * It is the only writer of error responses and runs after every other transformer.
  *
- * It is the only writer of error responses and runs after every other transformer. Scramble
- * documents one operation at a time and uses this class twice for each: first as a rule
- * transformer, which records every validation rule of the request, then as an operation
- * transformer, which writes the responses. The recorded rules are handed over in a static property.
+ * @phpstan-import-type Rules from RequestRules
  */
-final class RenderedErrors implements AllRulesSchemasTransformer, OperationTransformer
+final readonly class RenderedErrors implements OperationTransformer
 {
-    /**
-     * The rules of the operation being documented: input => [rule name or class, parameters].
-     *
-     * @var array<string, list<array{0: string, 1: list<mixed>}>>
-     */
-    private static array $rules = [];
-
-    private readonly ErrorSamples $samples;
-
     public function __construct(
-        Infer $infer,
-        TypeTransformer $openApiTransformer,
-        private readonly AppAnswers $answers,
-        private readonly ErrorSchemas $schemas,
-        private readonly SchemaFromSample $schemaFromSample,
-    ) {
-        $this->samples = new ErrorSamples($infer, $openApiTransformer);
-    }
-
-    public function shouldHandle(NormalizedRule $rule): bool
-    {
-        return true;
-    }
-
-    /**
-     * Records the rule; no schema is changed. A rule Scramble could only read from the source is a
-     * RuleType around the type of its object.
-     */
-    public function transformAll(SchemaBag $schemaBag, NormalizedRule $rule, RuleTransformerContext $context): void
-    {
-        $value = $rule->getRule();
-
-        $identity = match (true) {
-            is_string($value) => $value,
-            $value instanceof RuleType => $value->type instanceof ObjectType ? $value->type->name : null,
-            default => $value::class,
-        };
-
-        if ($identity !== null) {
-            self::$rules[$context->field][] = [$identity, array_values($rule->getParameters())];
-        }
-    }
+        private TypeTransformer $openApiTransformer,
+        private AppAnswers $answers,
+        private ErrorSchemas $schemas,
+        private SchemaFromSample $schemaFromSample,
+    ) {}
 
     public function handle(Operation $operation, RouteInfo $routeInfo): void
     {
-        [$rules, self::$rules] = [self::$rules, []];
+        $rules = RequestRules::take();
 
         $this->schemas->anyPath ??= $routeInfo->route->uri();
 
+        // status => the content type, the headers and the names of the error schemas answered with it
         $answered = [];
         foreach ($routeInfo->getActionType()?->exceptions ?? [] as $type) {
             if (! $type instanceof ObjectType) {
                 continue;
             }
 
+            // Without a named input the request is unknown: its validation error is the one of any request.
             $isValidation = is_a($type->name, ValidationException::class, true);
-            $ofRequest = $isValidation && $this->namedInputs($rules) !== [];
+            $requestRules = $isValidation && $this->hasNamedInput($rules) ? $rules : null;
+            $samples = match (true) {
+                $requestRules !== null => ValidationSamples::ofRequest($requestRules),
+                $isValidation => ValidationSamples::ofAnyRequest(),
+                default => ErrorSamples::of($type, $this->openApiTransformer),
+            };
 
-            // Several samples of one error (a validation error has two) are answers to merge into one schema.
-            $status = null;
+            $answers = array_values(array_filter(
+                $this->answers->toEach($samples, $routeInfo->method, $routeInfo->route->uri()),
+                static fn (array $answer): bool => $answer['status'] >= HttpResponse::HTTP_BAD_REQUEST,
+            ));
+
+            if ($answers === []) {
+                continue;
+            }
+
+            // Several samples of one error (a validation error has two) merge into one schema.
+            $status = $answers[0]['status'];
             $schemas = [];
-            foreach ($this->samples->of($type, $ofRequest ? $rules : []) as $exception) {
-                $answer = $this->answers->to($exception, $routeInfo->method, $routeInfo->route->uri());
-
-                if ($answer === null || $answer['status'] < HttpResponse::HTTP_BAD_REQUEST) {
-                    continue;
-                }
-
-                $status ??= $answer['status'];
+            foreach ($answers as $answer) {
                 $schema = $this->schemaFromSample->of($answer['body']);
-                $schemas[] = $isValidation ? self::perInput($schema, $ofRequest ? $rules : null) : $schema;
+                $schemas[] = $isValidation ? ValidationSchema::perInput($schema, $requestRules) : $schema;
 
                 $answered[$status]['contentType'] = $answer['contentType'];
                 $answered[$status]['headers'] = [...($answered[$status]['headers'] ?? []), ...$answer['headers']];
             }
 
-            if ($status === null) {
-                continue;
-            }
+            $schema = SchemaFromSample::merge($schemas);
+            $name = $requestRules === null
+                ? $this->schemas->add($schema, $type->name, $status)
+                : $this->schemas->addValidationOf($this->requestName($operation, $routeInfo), $schema);
 
-            $name = $this->schemas->add(SchemaFromSample::merge($schemas), $type->name, $status, $ofRequest ? $this->requestName($operation, $routeInfo) : null);
             $answered[$status]['names'][$name] = $name;
         }
 
@@ -135,83 +99,51 @@ final class RenderedErrors implements AllRulesSchemasTransformer, OperationTrans
 
         ksort($answered);
 
-        // What Scramble documented for a status the application was asked about is replaced; any other response stays.
+        // Scramble's own response for an answered status is replaced; any other response stays.
         $operation->responses = array_values(array_filter(
             $operation->responses ?? [],
-            static fn (Response|Reference $response): bool => ! $response instanceof Response || ! isset($answered[(int) $response->code]),
+            static fn (Response|Reference $response): bool => ! $response instanceof Response
+                || ! isset($answered[(int) $response->code]),
         ));
 
         foreach ($answered as $status => $error) {
-            $response = Response::make($status)
-                ->setDescription($status === 419 ? 'Page Expired' : (HttpResponse::$statusTexts[$status] ?? 'Error'))
-                ->setContent($error['contentType'], Schema::fromType(new RawSchema($this->schemas->response(array_values($error['names'])))));
-
-            foreach ($error['headers'] as $header => $value) {
-                $response->addHeader($header, new Header(
-                    description: $header === 'Retry-After' ? 'The number of seconds to wait before sending the request again.' : null,
-                    schema: Schema::fromType(is_numeric($value) ? new IntegerType : new StringType),
-                ));
-            }
-
-            $operation->addResponse($response);
+            $names = array_values($error['names']);
+            $operation->addResponse($this->errorResponse($status, $error['contentType'], $error['headers'], $names));
         }
     }
 
     /**
-     * Rewrites the part of a validation answer that lists the inputs, which is the object that has
-     * the inputs of the request as its members:
-     *
-     * - an input an answer names is no longer required: it is only there when it failed;
-     * - an input the request cannot name (an item of a list), or any input of a request nobody
-     *   knows, becomes what every other member looks like.
-     *
-     * @param  array<string, mixed>  $schema
-     * @param  array<string, list<array{0: string, 1: list<mixed>}>>|null  $rules  null for the validation error of any request
-     * @return array<string, mixed>
+     * @param  array<string, string>  $headers
+     * @param  list<string>  $names
      */
-    public static function perInput(array $schema, ?array $rules): array
+    private function errorResponse(int $status, string $contentType, array $headers, array $names): Response
     {
-        $inputs = $rules === null ? [ErrorSamples::ANY_INPUT] : array_map(strval(...), array_keys($rules));
-        $attributes = array_map(ErrorSamples::attribute(...), $inputs);
+        $response = Response::make($status)
+            ->setDescription(ErrorSchemas::reasonPhrase($status) ?? 'Error')
+            ->setContent($contentType, RawSchema::asSchema($this->schemas->response($names)));
 
-        if (isset($schema['properties']) && array_diff($attributes, array_keys($schema['properties'])) === []) {
-            $unnamed = [];
-            foreach ($inputs as $input) {
-                if ($rules === null || str_contains($input, '*')) {
-                    $unnamed[] = $schema['properties'][ErrorSamples::attribute($input)];
-                    unset($schema['properties'][ErrorSamples::attribute($input)]);
-                }
-            }
-
-            unset($schema['required']);
-
-            return array_filter([
-                ...$schema,
-                'additionalProperties' => $unnamed === [] ? null : SchemaFromSample::merge($unnamed),
-            ], static fn (mixed $member): bool => $member !== null && $member !== []);
+        foreach ($headers as $header => $value) {
+            $response->addHeader($header, new Header(
+                description: $header === 'Retry-After' ? 'The number of seconds to wait before sending the request again.' : null,
+                schema: Schema::fromType(is_numeric($value) ? new IntegerType : new StringType),
+            ));
         }
 
-        foreach ($schema['properties'] ?? [] as $member => $property) {
-            if (is_array($property)) {
-                $schema['properties'][$member] = self::perInput($property, $rules);
-            }
-        }
-
-        return $schema;
+        return $response;
     }
 
     /**
-     * @param  array<string, list<array{0: string, 1: list<mixed>}>>  $rules
-     * @return list<string>
+     * Whether the rules name an input of the request, not only items of a list (`tags.*`).
+     *
+     * @param  Rules  $rules
      */
-    private function namedInputs(array $rules): array
+    private function hasNamedInput(array $rules): bool
     {
-        return array_values(array_filter(array_map(strval(...), array_keys($rules)), static fn (string $input): bool => ! str_contains($input, '*')));
+        return array_any(array_keys($rules), static fn (int|string $input): bool => ! str_contains((string) $input, '*'));
     }
 
     /**
-     * The name of the request a validation error belongs to: its Form Request without the
-     * `Request` suffix (`LoginRequest` is `Login`), or else the operation (route `api.news.index` is `NewsIndex`).
+     * The Form Request without its suffix (`LoginRequest` is `Login`), else the operation (`NewsIndex`).
      */
     private function requestName(Operation $operation, RouteInfo $routeInfo): string
     {

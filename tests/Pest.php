@@ -8,7 +8,7 @@ use Igne\ApiDocs\Tests\Packages\LaravelAuthTestCase;
 use Igne\ApiDocs\Tests\SwitchedOffTestCase;
 use Igne\ApiDocs\Tests\TestCase;
 
-uses(TestCase::class)->in('Feature/ExtensionsTest.php', 'Feature/RulesTest.php', 'Feature/LaravelErrorsTest.php');
+uses(TestCase::class)->in('Feature/ExtensionsTest.php', 'Feature/RulesTest.php', 'Feature/LaravelErrorsTest.php', 'Feature/ConsoleTest.php');
 uses(CodedErrorsTestCase::class)->in('Feature/CodedErrorsTest.php');
 uses(CodedErrorsFirstTestCase::class)->in('Feature/BootOrderTest.php');
 uses(SwitchedOffTestCase::class)->in('Feature/SwitchedOffTest.php');

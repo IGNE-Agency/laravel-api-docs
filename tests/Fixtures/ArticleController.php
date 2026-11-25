@@ -39,6 +39,17 @@ final class ArticleController
         throw new ArticleLockedException;
     }
 
+    public function destroy(): Response
+    {
+        abort_if(Article::query()->doesntExist(), 409);
+
+        if (Article::query()->count() > 1) {
+            throw new ArticleHasCommentsException;
+        }
+
+        return response()->noContent();
+    }
+
     public function publish(PublishArticle $publish): ArticlePublishedResponse|ArticleNotPublishedResponse
     {
         return $publish(false) ? app(ArticlePublishedResponse::class) : app(ArticleNotPublishedResponse::class);

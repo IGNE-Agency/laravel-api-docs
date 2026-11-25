@@ -5,30 +5,23 @@ declare(strict_types=1);
 namespace Igne\ApiDocs\Errors;
 
 use Dedoc\Scramble\Contracts\DocumentTransformer;
-use Dedoc\Scramble\Infer;
 use Dedoc\Scramble\OpenApiContext;
 use Dedoc\Scramble\Support\Generator\OpenApi;
-use Dedoc\Scramble\Support\Generator\Schema;
-use Dedoc\Scramble\Support\Generator\TypeTransformer;
+use Igne\ApiDocs\Validation\ValidationSamples;
+use Igne\ApiDocs\Validation\ValidationSchema;
 
 /**
- * Closes the document once every operation is documented: writes the schema of each error the
- * operations answer, adds the errors any request can get and the validation error of a request
- * nobody knows, and the closed set of them all, so a client can handle every error in one place.
+ * Closes the document once every operation is documented: adds the errors any request can get,
+ * writes the schema of every error, and the closed set of them all (`ApiError`, `ApiErrorCode`), so
+ * a client can handle every error in one place.
  */
 final readonly class ErrorSet implements DocumentTransformer
 {
-    private ErrorSamples $samples;
-
     public function __construct(
-        Infer $infer,
-        TypeTransformer $openApiTransformer,
         private AppAnswers $answers,
         private ErrorSchemas $schemas,
         private SchemaFromSample $schemaFromSample,
-    ) {
-        $this->samples = new ErrorSamples($infer, $openApiTransformer);
-    }
+    ) {}
 
     public function handle(OpenApi $document, OpenApiContext $context): void
     {
@@ -38,7 +31,7 @@ final readonly class ErrorSet implements DocumentTransformer
             return;
         }
 
-        foreach ($this->samples->ofAnyRequest() as $exception) {
+        foreach (ErrorSamples::ofAnyRequest() as $exception) {
             $answer = $this->answers->to($exception, 'GET', $path);
 
             if ($answer !== null) {
@@ -46,33 +39,29 @@ final readonly class ErrorSet implements DocumentTransformer
             }
         }
 
-        $validation = [];
-        $status = null;
-        foreach ($this->samples->ofAnyValidation() as $exception) {
-            $answer = $this->answers->to($exception, 'POST', $path);
+        // The validation error of a request nobody knows.
+        $answers = $this->answers->toEach(ValidationSamples::ofAnyRequest(), 'POST', $path);
 
-            if ($answer !== null) {
-                $status ??= $answer['status'];
-                $validation[] = RenderedErrors::perInput($this->schemaFromSample->of($answer['body']), null);
-            }
-        }
+        if ($answers !== []) {
+            $schemas = array_map(
+                fn (array $answer): array => ValidationSchema::perInput($this->schemaFromSample->of($answer['body']), null),
+                $answers,
+            );
 
-        if ($status !== null) {
-            $this->schemas->add(SchemaFromSample::merge($validation), null, $status);
+            $this->schemas->add(SchemaFromSample::merge($schemas), null, $answers[0]['status']);
         }
 
         foreach ($this->schemas->all() as $name => $schema) {
-            $document->components->removeSchema($name);
-            $document->components->addSchema($name, Schema::fromType(new RawSchema($schema)));
+            $document->components->addSchema($name, RawSchema::asSchema($schema));
         }
 
         $closedSet = $this->schemas->closedSet();
 
         if ($closedSet !== null) {
-            $document->components->addSchema((string) config('api-docs.errors.set', 'ApiError'), Schema::fromType(new RawSchema($closedSet['errors'])));
+            $document->components->addSchema((string) config('api-docs.errors.set', 'ApiError'), RawSchema::asSchema($closedSet['errors']));
 
             if ($closedSet['codes'] !== null) {
-                $document->components->addSchema((string) config('api-docs.errors.codes', 'ApiErrorCode'), Schema::fromType(new RawSchema($closedSet['codes'])));
+                $document->components->addSchema((string) config('api-docs.errors.codes', 'ApiErrorCode'), RawSchema::asSchema($closedSet['codes']));
             }
         }
 

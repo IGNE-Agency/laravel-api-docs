@@ -6,26 +6,29 @@ namespace Igne\ApiDocs;
 
 use Dedoc\Scramble\Configuration\OperationTransformers;
 use Dedoc\Scramble\Scramble;
+use Igne\ApiDocs\CalledMethods\ExceptionsOfCalledMethods;
+use Igne\ApiDocs\Csrf\CsrfHeader;
 use Igne\ApiDocs\Errors\AppAnswers;
 use Igne\ApiDocs\Errors\ErrorSchemas;
 use Igne\ApiDocs\Errors\ErrorSet;
 use Igne\ApiDocs\Errors\RenderedErrors;
 use Igne\ApiDocs\Errors\SchemaFromSample;
+use Igne\ApiDocs\Fortify\BoundResponses;
+use Igne\ApiDocs\Fortify\ContainerCalls;
+use Igne\ApiDocs\Middleware\ExceptionsOfMiddleware;
+use Igne\ApiDocs\Packages\RoutedPackages;
+use Igne\ApiDocs\Pagination\PaginatedResponses;
+use Igne\ApiDocs\Security\SecuritySchemes;
+use Igne\ApiDocs\Validation\RequestRules;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Registers the rules the configuration turns on. Each one tells Scramble something about a Laravel
- * application it cannot read by itself, and applies to every route of the document, whoever
- * registered it: the application or a package.
+ * Registers the rules the config turns on. Each applies to every route of the document, whoever
+ * registered it.
  *
- * The rules run in two phases, so the result does not depend on the order the packages of an
- * application boot in:
- *
- * - a rule that adds knowledge (what an operation can throw) runs in front of Scramble's own
- *   transformers;
- * - a rule that writes a part of the document (the errors, the security, a header) runs once every
- *   provider has booted, after the transformers of the application and of every other package, and
- *   each writes a part of its own.
+ * A rule that adds knowledge (what an operation can throw) runs before Scramble's own transformers.
+ * A rule that writes the document runs once every provider has booted, after everyone else's. So
+ * the result does not depend on the order packages boot in.
  */
 final class ApiDocsServiceProvider extends ServiceProvider
 {
@@ -34,8 +37,16 @@ final class ApiDocsServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/api-docs.php', 'api-docs');
 
         $this->app->singleton(AppAnswers::class);
-        $this->app->singleton(ErrorSchemas::class, static fn (): ErrorSchemas => new ErrorSchemas((string) config('api-docs.errors.suffix', 'Error')));
-        $this->app->bind(SchemaFromSample::class, static fn (): SchemaFromSample => new SchemaFromSample(array_values(array_filter((array) config('api-docs.errors.free_text', []), is_string(...)))));
+        $this->app->singleton(
+            ErrorSchemas::class,
+            static fn (): ErrorSchemas => new ErrorSchemas((string) config('api-docs.errors.suffix', 'Error')),
+        );
+        $this->app->bind(
+            SchemaFromSample::class,
+            static fn (): SchemaFromSample => new SchemaFromSample(
+                array_values(array_filter((array) config('api-docs.errors.free_text', []), is_string(...))),
+            ),
+        );
     }
 
     public function boot(): void
@@ -67,25 +78,22 @@ final class ApiDocsServiceProvider extends ServiceProvider
         $errors = config('api-docs.errors.enabled') === true;
         $security = config('api-docs.security') === true;
 
-        if ($errors) {
-            Scramble::configure()->withRuleTransformers([RenderedErrors::class]);
-        }
-
         $this->app->booted(static function () use ($errors, $security): void {
             Scramble::configure()
+                ->withRuleTransformers($errors ? [RequestRules::class] : [])
                 ->withOperationTransformers(array_values(array_filter([
                     config('api-docs.csrf') === true ? CsrfHeader::class : null,
-                    $security ? Security::class : null,
+                    $security ? SecuritySchemes::class : null,
                     $errors ? RenderedErrors::class : null,
                 ])))
                 ->withDocumentTransformers(array_values(array_filter([
-                    $security ? Security::class : null,
+                    $security ? SecuritySchemes::class : null,
                     $errors ? ErrorSet::class : null,
                 ])));
         });
 
-        // The code does not change between two deploys, so outside the local environment the document is
-        // generated once, by `php artisan optimize` in the deploy, and served from Scramble's cache.
+        // Outside local the document is generated once per deploy (`php artisan optimize`) and served from
+        // Scramble's cache.
         if (! $this->app->isLocal()) {
             $this->optimizes('scramble:cache', 'scramble:clear');
         }

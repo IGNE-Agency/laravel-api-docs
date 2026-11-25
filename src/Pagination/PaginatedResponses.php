@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ApiDocs;
+namespace Igne\ApiDocs\Pagination;
 
 use Dedoc\Scramble\Contracts\OperationTransformer;
 use Dedoc\Scramble\Support\Generator\Operation;
@@ -16,15 +16,11 @@ use Dedoc\Scramble\Support\Generator\TypeTransformer;
 use Dedoc\Scramble\Support\RouteInfo;
 
 /**
- * Documents a paginated list as named schemas, so a client generates reusable types instead of one
- * inline type per endpoint: the `links` and `meta` members once, as `PaginationLinks` and
- * `PaginationMeta`, and the response itself as `Paginated<Resource>`, named after the resource of
- * its `data` items (`PaginatedArticleResource`).
+ * Documents a paginated list with named schemas instead of one inline schema per endpoint:
+ * `PaginationLinks`, `PaginationMeta` and `Paginated<Resource>`.
  *
- * Scramble describes all of it inline on every paginated response; the first one met becomes the
- * shared schema. A response or member that differs from the schema of its name (another paginator, a
- * resource with its own `paginationInformation()`) keeps its inline description, and so does a
- * response whose `data` items are not a resource. The JSON of the endpoints is untouched.
+ * The first one met becomes the shared schema; a response that differs from it keeps its inline
+ * description.
  */
 final readonly class PaginatedResponses implements OperationTransformer
 {
@@ -55,8 +51,7 @@ final readonly class PaginatedResponses implements OperationTransformer
     }
 
     /**
-     * The reference to the `Paginated<Resource>` schema of the response, the response itself when its
-     * `data` items are not a resource.
+     * The `Paginated<Resource>` reference, or the response itself when its items are no resource.
      */
     private function named(ObjectType $body): Type
     {

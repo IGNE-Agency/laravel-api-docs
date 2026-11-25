@@ -9,12 +9,11 @@ use ReflectionClass;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The named schemas of the errors of one document, so a client generates a type for each.
+ * The named schemas of the errors of one document.
  *
- * An answer that carries one fixed value of its own (a `code`) is named after that value
- * (`two_factor_required` is `TwoFactorRequiredError`), so every exception the application answers
- * the same way is the same schema. An answer without one (Laravel's `{ message }`) is named after
- * its status: nothing in it tells two errors of that status apart.
+ * An answer with one fixed value of its own (a `code`) is named after it (`two_factor_required` is
+ * `TwoFactorRequiredError`). An answer without one (Laravel's `{ message }`) is named after its
+ * status.
  */
 final class ErrorSchemas
 {
@@ -48,14 +47,14 @@ final class ErrorSchemas
     private array $descriptions = [];
 
     /**
-     * The schemas of one request each (its validation error), which are no error of their own.
+     * The validation errors of single requests, which are no part of the closed set.
      *
      * @var array<string, true>
      */
     private array $ofOneRequest = [];
 
     /**
-     * The path of an operation of the document, to ask the application about the errors any request can get.
+     * A path of the document, to ask the application about the errors any request can get.
      */
     public ?string $anyPath = null;
 
@@ -64,31 +63,46 @@ final class ErrorSchemas
     /**
      * @param  array<string, mixed>  $schema
      * @param  class-string|null  $exceptionClass
-     * @param  string|null  $requestName  the request the schema belongs to, when it is the validation error of one request
      */
-    public function add(array $schema, ?string $exceptionClass, int $status, ?string $requestName = null): string
+    public function add(array $schema, ?string $exceptionClass, int $status): string
     {
-        $name = $requestName !== null ? $requestName.'Validation'.$this->suffix : $this->nameOf($schema, $status);
+        $fixed = self::fixedValues($schema);
+        $code = count($fixed) === 1 ? reset($fixed) : null;
+        $phrase = self::reasonPhrase($status) ?? 'Error '.$status;
 
-        $this->schemas[$name] = isset($this->schemas[$name]) ? SchemaFromSample::merge([$this->schemas[$name], $schema]) : $schema;
+        $name = Str::studly($code ?? Str::slug($phrase, '_'));
+        // `internal_server_error` is InternalServerError, not InternalServerErrorError.
+        $name = str_ends_with($name, $this->suffix) ? $name : $name.$this->suffix;
+        $this->put($name, $schema);
 
-        if ($requestName !== null) {
-            $this->ofOneRequest[$name] = true;
-            $this->descriptions[$name] = "A validation error of {$requestName}: its inputs and the rules each can fail.";
-        } elseif (count(self::fixedValues($schema)) === 1 && ($summary = self::summaryOf($exceptionClass)) !== null) {
-            // Only an answer that is told apart from the others is the error of one class; one named after its
-            // status stands for every exception of that status.
+        // Only an answer with a code of its own is the error of one class, and takes its description.
+        $summary = $code === null ? null : self::summaryOf($exceptionClass);
+
+        if ($summary !== null) {
             $this->descriptions[$name] = $summary;
         } else {
-            $this->descriptions[$name] ??= self::DESCRIPTIONS[$status] ?? self::reasonPhrase($status).'.';
+            $this->descriptions[$name] ??= self::DESCRIPTIONS[$status] ?? $phrase.'.';
         }
 
         return $name;
     }
 
     /**
-     * The body of an error response: the error itself, or one of several told apart by the member
-     * that is fixed and different in each.
+     * @param  array<string, mixed>  $schema
+     */
+    public function addValidationOf(string $requestName, array $schema): string
+    {
+        $name = $requestName.'Validation'.$this->suffix;
+        $this->put($name, $schema);
+
+        $this->ofOneRequest[$name] = true;
+        $this->descriptions[$name] = "A validation error of {$requestName}: its inputs and the rules each can fail.";
+
+        return $name;
+    }
+
+    /**
+     * The error itself, or a `oneOf` told apart by the member that is fixed and different in each.
      *
      * @param  list<string>  $names
      * @return array<string, mixed>
@@ -106,8 +120,6 @@ final class ErrorSchemas
     }
 
     /**
-     * Every schema, with its description, to write into the document.
-     *
      * @return array<string, array<string, mixed>>
      */
     public function all(): array
@@ -123,13 +135,14 @@ final class ErrorSchemas
     }
 
     /**
-     * The closed set: every error the API can answer, and the values of the member that tells them apart.
+     * Every error the API can answer, and the values that tell them apart.
      *
      * @return array{errors: array<string, mixed>, codes: array<string, mixed>|null}|null
      */
     public function closedSet(): ?array
     {
-        $names = array_values(array_diff(array_keys($this->all()), array_keys($this->ofOneRequest)));
+        $names = array_keys(array_diff_key($this->schemas, $this->ofOneRequest));
+        sort($names);
 
         if ($names === []) {
             return null;
@@ -153,32 +166,32 @@ final class ErrorSchemas
         $this->anyPath = null;
     }
 
-    /**
-     * @param  array<string, mixed>  $schema
-     */
-    private function nameOf(array $schema, int $status): string
+    public static function reasonPhrase(int $status): ?string
     {
-        $fixed = self::fixedValues($schema);
-
-        $name = Str::studly(count($fixed) === 1 ? (string) reset($fixed) : Str::slug(self::reasonPhrase($status), '_'));
-
-        // `internal_server_error` is InternalServerError, not InternalServerErrorError.
-        return str_ends_with($name, $this->suffix) ? $name : $name.$this->suffix;
+        return $status === 419 ? 'Page Expired' : (Response::$statusTexts[$status] ?? null);
     }
 
     /**
-     * The member that is a fixed value in each of the schemas and a different one in each.
+     * @param  array<string, mixed>  $schema
+     */
+    private function put(string $name, array $schema): void
+    {
+        $this->schemas[$name] = isset($this->schemas[$name]) ? SchemaFromSample::merge([$this->schemas[$name], $schema]) : $schema;
+    }
+
+    /**
+     * The member that is a fixed value in every schema and a different one in each.
      *
      * @param  list<string>  $names
      * @return array{propertyName: string, mapping: array<string, string>}|null
      */
     private function discriminator(array $names): ?array
     {
-        foreach (array_keys(self::fixedValues($this->schemas[$names[0]] ?? [])) as $member) {
+        foreach (array_keys(self::fixedValues($this->schemas[$names[0]])) as $member) {
             $mapping = [];
 
             foreach ($names as $name) {
-                $value = self::fixedValues($this->schemas[$name] ?? [])[$member] ?? null;
+                $value = self::fixedValues($this->schemas[$name])[$member] ?? null;
 
                 if ($value === null || isset($mapping[$value])) {
                     continue 2;
@@ -196,7 +209,7 @@ final class ErrorSchemas
     }
 
     /**
-     * The top-level members of a schema that are one fixed string.
+     * The top-level members that are one fixed string.
      *
      * @param  array<string, mixed>  $schema
      * @return array<string, string>
@@ -221,14 +234,8 @@ final class ErrorSchemas
         return ['$ref' => '#/components/schemas/'.$name];
     }
 
-    private static function reasonPhrase(int $status): string
-    {
-        return $status === 419 ? 'Page Expired' : (Response::$statusTexts[$status] ?? 'Error '.$status);
-    }
-
     /**
-     * The first paragraph of the docblock of an exception class that is not the framework's own:
-     * such a class is written for one error, and says when it happens.
+     * The first paragraph of the docblock of an exception class, unless the class is the framework's.
      *
      * @param  class-string|null  $class
      */
@@ -245,7 +252,7 @@ final class ErrorSchemas
         }
 
         $summary = [];
-        foreach (explode("\n", $docComment) as $line) {
+        foreach (explode("\n", Str::beforeLast($docComment, '*/')) as $line) {
             $line = trim(ltrim(trim($line), '/*'));
 
             if (str_starts_with($line, '@') || ($line === '' && $summary !== [])) {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ApiDocs;
+namespace Igne\ApiDocs\Fortify;
 
 use Dedoc\Scramble\Infer\Extensions\Event\FunctionCallEvent;
 use Dedoc\Scramble\Infer\Extensions\FunctionReturnTypeExtension;
@@ -12,10 +12,8 @@ use Dedoc\Scramble\Support\Type\ObjectType;
 use Dedoc\Scramble\Support\Type\Type;
 
 /**
- * Tells Scramble what the container hands back: `app(LoginResponse::class)` and
- * `resolve(LoginResponse::class)` are a `LoginResponse`. Without it such a call has no type, and an
- * action that answers with one is documented by its docblock alone. {@see BoundResponses} then
- * follows the contract to the class that is bound to it.
+ * Gives `app(LoginResponse::class)` and `resolve(...)` a type, which Scramble does not infer, so
+ * {@see BoundResponses} can follow it.
  */
 final class ContainerCalls implements FunctionReturnTypeExtension
 {
@@ -32,8 +30,7 @@ final class ContainerCalls implements FunctionReturnTypeExtension
             return null;
         }
 
-        // A response contract whose bound class has no answer for a JSON client only throws for one (a failed
-        // confirmation answers a redirect, or a validation error): for the document, such a call never returns.
+        // A contract whose bound class has no answer for a JSON client only throws for one: the call never returns.
         $bound = BoundResponses::boundTo($abstract->type->name);
 
         if ($bound !== null && BoundResponses::answerForJson($bound) === null) {
