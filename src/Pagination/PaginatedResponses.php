@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ApiDocs;
+namespace Igne\ApiDocs\Pagination;
 
 use Dedoc\Scramble\Contracts\OperationTransformer;
 use Dedoc\Scramble\Support\Generator\Operation;

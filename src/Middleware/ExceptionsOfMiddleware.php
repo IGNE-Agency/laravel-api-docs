@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ApiDocs;
+namespace Igne\ApiDocs\Middleware;
 
 use Dedoc\Scramble\Contracts\OperationTransformer;
 use Dedoc\Scramble\Infer;
@@ -10,6 +10,7 @@ use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\RouteInfo;
 use Dedoc\Scramble\Support\Type\ObjectType;
 use Dedoc\Scramble\Support\Type\Type;
+use Igne\ApiDocs\Csrf\CsrfProtection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Routing\Route;
@@ -31,7 +32,7 @@ use WeakMap;
  *   interface to implement: a package declares it without depending on this one;
  * - of any other middleware, what its `handle()` throws or declares with `@throws`;
  * - the CSRF check answers 419, but only an operation that changes state on a path that is not
- *   excepted ({@see Csrf});
+ *   excepted ({@see CsrfProtection});
  * - the route model binding answers 404, but only a route that has a parameter to bind.
  *
  * The errors are kept per route. Scramble holds one type per controller method, so two routes that
@@ -49,7 +50,7 @@ final class ExceptionsOfMiddleware implements OperationTransformer
     public function __construct(
         private readonly Infer $infer,
         private readonly Router $router,
-        private readonly Csrf $csrf,
+        private readonly CsrfProtection $csrf,
     ) {}
 
     public function handle(Operation $operation, RouteInfo $routeInfo): void
@@ -100,7 +101,7 @@ final class ExceptionsOfMiddleware implements OperationTransformer
      */
     private function thrownByMiddleware(string $middlewareClass, Route $route, string $method): array
     {
-        if (Csrf::runsTheCheck($middlewareClass)) {
+        if (CsrfProtection::runsTheCheck($middlewareClass)) {
             return $this->csrf->protects($route, $method) ? [new ObjectType(TokenMismatchException::class)] : [];
         }
 

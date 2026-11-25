@@ -10,6 +10,8 @@ use Dedoc\Scramble\OpenApiContext;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\Schema;
 use Dedoc\Scramble\Support\Generator\TypeTransformer;
+use Igne\ApiDocs\Validation\ValidationSamples;
+use Igne\ApiDocs\Validation\ValidationSchema;
 
 /**
  * Closes the document once every operation is documented: writes the schema of each error the
@@ -26,6 +28,7 @@ final readonly class ErrorSet implements DocumentTransformer
         private AppAnswers $answers,
         private ErrorSchemas $schemas,
         private SchemaFromSample $schemaFromSample,
+        private ValidationSamples $validationSamples,
     ) {
         $this->samples = new ErrorSamples($infer, $openApiTransformer);
     }
@@ -48,12 +51,12 @@ final readonly class ErrorSet implements DocumentTransformer
 
         $validation = [];
         $status = null;
-        foreach ($this->samples->ofAnyValidation() as $exception) {
+        foreach ($this->validationSamples->ofAnyRequest() as $exception) {
             $answer = $this->answers->to($exception, 'POST', $path);
 
             if ($answer !== null) {
                 $status ??= $answer['status'];
-                $validation[] = RenderedErrors::perInput($this->schemaFromSample->of($answer['body']), null);
+                $validation[] = ValidationSchema::perInput($this->schemaFromSample->of($answer['body']), null);
             }
         }
 

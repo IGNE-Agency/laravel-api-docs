@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ApiDocs;
+namespace Igne\ApiDocs\CalledMethods;
 
 use Dedoc\Scramble\Infer\Extensions\ExpressionExceptionExtension;
 use Dedoc\Scramble\Infer\Scope\LazyShallowReflectionIndex;

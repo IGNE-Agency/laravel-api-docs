@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Igne\ApiDocs\Errors;
 
-use Dedoc\Scramble\Contracts\AllRulesSchemasTransformer;
 use Dedoc\Scramble\Contracts\OperationTransformer;
 use Dedoc\Scramble\Infer;
 use Dedoc\Scramble\Support\Generator\Header;
@@ -16,12 +15,11 @@ use Dedoc\Scramble\Support\Generator\Types\IntegerType;
 use Dedoc\Scramble\Support\Generator\Types\StringType;
 use Dedoc\Scramble\Support\Generator\TypeTransformer;
 use Dedoc\Scramble\Support\Generator\UniqueNameOptions;
-use Dedoc\Scramble\Support\OperationExtensions\RulesEvaluator\RuleType;
 use Dedoc\Scramble\Support\RouteInfo;
-use Dedoc\Scramble\Support\RuleTransforming\NormalizedRule;
-use Dedoc\Scramble\Support\RuleTransforming\RuleTransformerContext;
-use Dedoc\Scramble\Support\RuleTransforming\SchemaBag;
 use Dedoc\Scramble\Support\Type\ObjectType;
+use Igne\ApiDocs\Validation\RequestRules;
+use Igne\ApiDocs\Validation\ValidationSamples;
+use Igne\ApiDocs\Validation\ValidationSchema;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -38,20 +36,11 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
  * application that answers Laravel's `{ message }` is documented that way, one that answers RFC
  * 9457 Problem Details that way, with no setting to change.
  *
- * It is the only writer of error responses and runs after every other transformer. Scramble
- * documents one operation at a time and uses this class twice for each: first as a rule
- * transformer, which records every validation rule of the request, then as an operation
- * transformer, which writes the responses. The recorded rules are handed over in a static property.
+ * It is the only writer of error responses and runs after every other transformer. The validation
+ * error of a request is built from the rules {@see RequestRules} recorded for the operation.
  */
-final class RenderedErrors implements AllRulesSchemasTransformer, OperationTransformer
+final class RenderedErrors implements OperationTransformer
 {
-    /**
-     * The rules of the operation being documented: input => [rule name or class, parameters].
-     *
-     * @var array<string, list<array{0: string, 1: list<mixed>}>>
-     */
-    private static array $rules = [];
-
     private readonly ErrorSamples $samples;
 
     public function __construct(
@@ -60,37 +49,14 @@ final class RenderedErrors implements AllRulesSchemasTransformer, OperationTrans
         private readonly AppAnswers $answers,
         private readonly ErrorSchemas $schemas,
         private readonly SchemaFromSample $schemaFromSample,
+        private readonly ValidationSamples $validationSamples,
     ) {
         $this->samples = new ErrorSamples($infer, $openApiTransformer);
     }
 
-    public function shouldHandle(NormalizedRule $rule): bool
-    {
-        return true;
-    }
-
-    /**
-     * Records the rule; no schema is changed. A rule Scramble could only read from the source is a
-     * RuleType around the type of its object.
-     */
-    public function transformAll(SchemaBag $schemaBag, NormalizedRule $rule, RuleTransformerContext $context): void
-    {
-        $value = $rule->getRule();
-
-        $identity = match (true) {
-            is_string($value) => $value,
-            $value instanceof RuleType => $value->type instanceof ObjectType ? $value->type->name : null,
-            default => $value::class,
-        };
-
-        if ($identity !== null) {
-            self::$rules[$context->field][] = [$identity, array_values($rule->getParameters())];
-        }
-    }
-
     public function handle(Operation $operation, RouteInfo $routeInfo): void
     {
-        [$rules, self::$rules] = [self::$rules, []];
+        $rules = RequestRules::take();
 
         $this->schemas->anyPath ??= $routeInfo->route->uri();
 
@@ -106,7 +72,13 @@ final class RenderedErrors implements AllRulesSchemasTransformer, OperationTrans
             // Several samples of one error (a validation error has two) are answers to merge into one schema.
             $status = null;
             $schemas = [];
-            foreach ($this->samples->of($type, $ofRequest ? $rules : []) as $exception) {
+            $samples = match (true) {
+                $ofRequest => $this->validationSamples->ofRequest($rules),
+                $isValidation => $this->validationSamples->ofAnyRequest(),
+                default => $this->samples->of($type),
+            };
+
+            foreach ($samples as $exception) {
                 $answer = $this->answers->to($exception, $routeInfo->method, $routeInfo->route->uri());
 
                 if ($answer === null || $answer['status'] < HttpResponse::HTTP_BAD_REQUEST) {
@@ -115,7 +87,7 @@ final class RenderedErrors implements AllRulesSchemasTransformer, OperationTrans
 
                 $status ??= $answer['status'];
                 $schema = $this->schemaFromSample->of($answer['body']);
-                $schemas[] = $isValidation ? self::perInput($schema, $ofRequest ? $rules : null) : $schema;
+                $schemas[] = $isValidation ? ValidationSchema::perInput($schema, $ofRequest ? $rules : null) : $schema;
 
                 $answered[$status]['contentType'] = $answer['contentType'];
                 $answered[$status]['headers'] = [...($answered[$status]['headers'] ?? []), ...$answer['headers']];
@@ -155,49 +127,6 @@ final class RenderedErrors implements AllRulesSchemasTransformer, OperationTrans
 
             $operation->addResponse($response);
         }
-    }
-
-    /**
-     * Rewrites the part of a validation answer that lists the inputs, which is the object that has
-     * the inputs of the request as its members:
-     *
-     * - an input an answer names is no longer required: it is only there when it failed;
-     * - an input the request cannot name (an item of a list), or any input of a request nobody
-     *   knows, becomes what every other member looks like.
-     *
-     * @param  array<string, mixed>  $schema
-     * @param  array<string, list<array{0: string, 1: list<mixed>}>>|null  $rules  null for the validation error of any request
-     * @return array<string, mixed>
-     */
-    public static function perInput(array $schema, ?array $rules): array
-    {
-        $inputs = $rules === null ? [ErrorSamples::ANY_INPUT] : array_map(strval(...), array_keys($rules));
-        $attributes = array_map(ErrorSamples::attribute(...), $inputs);
-
-        if (isset($schema['properties']) && array_diff($attributes, array_keys($schema['properties'])) === []) {
-            $unnamed = [];
-            foreach ($inputs as $input) {
-                if ($rules === null || str_contains($input, '*')) {
-                    $unnamed[] = $schema['properties'][ErrorSamples::attribute($input)];
-                    unset($schema['properties'][ErrorSamples::attribute($input)]);
-                }
-            }
-
-            unset($schema['required']);
-
-            return array_filter([
-                ...$schema,
-                'additionalProperties' => $unnamed === [] ? null : SchemaFromSample::merge($unnamed),
-            ], static fn (mixed $member): bool => $member !== null && $member !== []);
-        }
-
-        foreach ($schema['properties'] ?? [] as $member => $property) {
-            if (is_array($property)) {
-                $schema['properties'][$member] = self::perInput($property, $rules);
-            }
-        }
-
-        return $schema;
     }
 
     /**

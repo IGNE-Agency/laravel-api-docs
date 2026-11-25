@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ApiDocs;
+namespace Igne\ApiDocs\Fortify;
 
 use Closure;
 use Dedoc\Scramble\Extensions\TypeToSchemaExtension;

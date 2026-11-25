@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ApiDocs;
+namespace Igne\ApiDocs\Security;
 
 use Dedoc\Scramble\Contracts\DocumentTransformer;
 use Dedoc\Scramble\Contracts\OperationTransformer;
@@ -12,6 +12,7 @@ use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\Generator\SecurityRequirement;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Dedoc\Scramble\Support\RouteInfo;
+use Igne\ApiDocs\Csrf\CsrfHeader;
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
 use Illuminate\Session\Middleware\StartSession;
@@ -29,7 +30,7 @@ use Illuminate\Support\Str;
  * A route without `auth` is public. The XSRF header a session client sends is no way to
  * authenticate, so it is no part of this: {@see CsrfHeader} documents it.
  */
-final class Security implements DocumentTransformer, OperationTransformer
+final class SecuritySchemes implements DocumentTransformer, OperationTransformer
 {
     public const string BEARER = 'bearer';
 

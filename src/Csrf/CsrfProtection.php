@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Igne\ApiDocs;
+namespace Igne\ApiDocs\Csrf;
 
 use Illuminate\Routing\Route;
 use Illuminate\Routing\Router;
@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
  * OPTIONS, on a route that runs the CSRF middleware directly (the `web` group) or through Sanctum's
  * stateful stack (`statefulApi()`), on a path the application does not except from the check.
  */
-final readonly class Csrf
+final readonly class CsrfProtection
 {
     /**
      * Laravel's CSRF middleware by the name of each version.

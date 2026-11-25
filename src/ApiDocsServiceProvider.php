@@ -6,11 +6,20 @@ namespace Igne\ApiDocs;
 
 use Dedoc\Scramble\Configuration\OperationTransformers;
 use Dedoc\Scramble\Scramble;
+use Igne\ApiDocs\CalledMethods\ExceptionsOfCalledMethods;
+use Igne\ApiDocs\Csrf\CsrfHeader;
 use Igne\ApiDocs\Errors\AppAnswers;
 use Igne\ApiDocs\Errors\ErrorSchemas;
 use Igne\ApiDocs\Errors\ErrorSet;
 use Igne\ApiDocs\Errors\RenderedErrors;
 use Igne\ApiDocs\Errors\SchemaFromSample;
+use Igne\ApiDocs\Fortify\BoundResponses;
+use Igne\ApiDocs\Fortify\ContainerCalls;
+use Igne\ApiDocs\Middleware\ExceptionsOfMiddleware;
+use Igne\ApiDocs\Packages\RoutedPackages;
+use Igne\ApiDocs\Pagination\PaginatedResponses;
+use Igne\ApiDocs\Security\SecuritySchemes;
+use Igne\ApiDocs\Validation\RequestRules;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -68,18 +77,18 @@ final class ApiDocsServiceProvider extends ServiceProvider
         $security = config('api-docs.security') === true;
 
         if ($errors) {
-            Scramble::configure()->withRuleTransformers([RenderedErrors::class]);
+            Scramble::configure()->withRuleTransformers([RequestRules::class]);
         }
 
         $this->app->booted(static function () use ($errors, $security): void {
             Scramble::configure()
                 ->withOperationTransformers(array_values(array_filter([
                     config('api-docs.csrf') === true ? CsrfHeader::class : null,
-                    $security ? Security::class : null,
+                    $security ? SecuritySchemes::class : null,
                     $errors ? RenderedErrors::class : null,
                 ])))
                 ->withDocumentTransformers(array_values(array_filter([
-                    $security ? Security::class : null,
+                    $security ? SecuritySchemes::class : null,
                     $errors ? ErrorSet::class : null,
                 ])));
         });
